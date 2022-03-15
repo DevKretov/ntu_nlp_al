@@ -103,7 +103,14 @@ class ALTrainer:
             losses_list =  []
             start_time = time.time()
 
-            pbar = tqdm.trange(steps_per_epoch, desc="Iteration", smoothing=0.05, disable=False)
+            pbar = tqdm.trange(
+                steps_per_epoch,
+                desc="Iteration",
+                smoothing=0.05,
+                disable=False,
+                position=0,
+                leave=True
+            )
 
             for next_batch in self.train_dataloader:
                 model.zero_grad()
@@ -184,7 +191,14 @@ class ALTrainer:
 
         print(f'Evaluation is run on {num_batches_to_eval} batches!')
 
-        pbar = tqdm.trange(num_batches_to_eval, desc="Iteration", smoothing=0.05, disable=False)
+        pbar = tqdm.trange(
+            num_batches_to_eval,
+            desc="Iteration",
+            smoothing=0.05,
+            disable=False,
+            position=0,
+            leave=True
+        )
 
         eval_loss = []
 
