@@ -112,6 +112,8 @@ class ALTrainer:
                 leave=True
             )
 
+            step_i = 0
+
             for next_batch in self.train_dataloader:
                 model.zero_grad()
 
@@ -147,9 +149,13 @@ class ALTrainer:
                 #     start_time = time.time()
                 pbar.set_description(f'Mean loss: {np.mean(losses_list)}')
                 pbar.update(1)
-        print(f'Epoch finished. Evaluation:')
 
-        self.evaluate()
+                step_i += 1
+                if step_i == steps_per_epoch:
+                    break
+            print(f'Epoch finished. Evaluation:')
+
+            self.evaluate(num_batches_to_eval=10)
             # mean_loss = round(total_loss / num_batches_per_epoch, 2)
             # mean_acc = round(total_acc / num_batches_per_epoch, 2)
           #  print(f'Training results: mean loss: {mean_loss}, mean_acc: {mean_acc}')
@@ -202,6 +208,7 @@ class ALTrainer:
 
         eval_loss = []
 
+        batch_i = 0
 
         for next_batch in self.train_dataloader:
             next_batch = {k: v.to(self.device) for k, v in next_batch.items()}
@@ -220,8 +227,14 @@ class ALTrainer:
             pbar.set_description(f'Mean loss: {np.mean(eval_loss)}')
             pbar.update(1)
 
+            batch_i += 1
+            if batch_i == num_batches_to_eval:
+                break
+
+        print(f'Metrics')
         for metric in self.metrics:
-            metric.compute()
-            print(f'Metric: {metric}')
+            result = metric.compute()
+            print(f'{result}')
+        print()
 
 #def al_train(self):
