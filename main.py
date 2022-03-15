@@ -1,5 +1,6 @@
 import torch
 from transformers import get_scheduler
+from datasets import list_metrics, load_metric
 
 from active_learning_trainer import ALTrainer
 from transformers import AutoTokenizer
@@ -76,4 +77,9 @@ if __name__ == '__main__':
     trainer.set_lr_scheduler(lr_scheduler)
     trainer.determine_device()
 
+
+    trainer.add_evaluation_metric(load_metric('accuracy'))
+    trainer.add_evaluation_metric(load_metric('f1'))
+    trainer.add_evaluation_metric(load_metric('precision'))
+    trainer.add_evaluation_metric(load_metric('recall'))
     trainer.train_model(parameters['epochs'])

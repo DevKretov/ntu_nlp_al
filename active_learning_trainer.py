@@ -15,6 +15,7 @@ class ALTrainer:
     def __init__(self):
 
         self.lr_scheduler = None
+        self.metrics = []
         pass
 
     def set_model(self, model):
@@ -76,6 +77,9 @@ class ALTrainer:
     def get_training_steps_num(self):
         return len(self.train_dataloader)
 
+    def add_evaluation_metric(self, metric_obj):
+        self.metrics.append(metric_obj)
+
 
     def train_model(
             self,
@@ -136,7 +140,9 @@ class ALTrainer:
                 #     start_time = time.time()
                 pbar.set_description(f'Mean loss: {np.mean(losses_list)}')
                 pbar.update(1)
+        print(f'Epoch finished. Evaluation:')
 
+        self.evaluate()
             # mean_loss = round(total_loss / num_batches_per_epoch, 2)
             # mean_acc = round(total_acc / num_batches_per_epoch, 2)
           #  print(f'Training results: mean loss: {mean_loss}, mean_acc: {mean_acc}')
@@ -165,46 +171,43 @@ class ALTrainer:
 
     def evaluate(self, num_batches_to_eval=-1, print_every=100):
 
+        model = self.model.model
+
         print(f'Running evaluation...')
         if num_batches_to_eval == -1:
-            num_batches_to_eval = self.val_X.size(0)
-        else:
-            num_batches_to_eval = min(num_batches_to_eval, self.val_X.size(0))
+            num_batches_to_eval = len(self.val_dataloader)
 
-        self.model.eval()
-        eval_loss = 0
-        eval_perplexity = 0
-        eval_acc = 0
+
+        model.eval()
+
         start_time = time.time()
 
         print(f'Evaluation is run on {num_batches_to_eval} batches!')
 
-        with torch.no_grad():
-            for batch_i in range(num_batches_to_eval):
-                input_X = self.val_X[batch_i]
-                input_y = self.val_y[batch_i].view(-1)
+        pbar = tqdm.trange(num_batches_to_eval, desc="Iteration", smoothing=0.05, disable=False)
 
-                output_probs, output = self.model(input_X)
+        eval_loss = []
 
-                batch_loss = self.criterion(output, input_y)
-                batch_perplexity = torch.exp(batch_loss)
 
-                eval_loss += batch_loss.item()
-                eval_perplexity += batch_perplexity.item()
-                eval_acc += self.calculate_accuracy(output_probs, input_y).item()
+        for next_batch in self.train_dataloader:
+            next_batch = {k: v.to(self.device) for k, v in next_batch.items()}
+            with torch.no_grad():
+                outputs = model(**next_batch)
+            loss = outputs.loss
 
-                if batch_i % print_every == 0:
-                    print(f'Dev iteration {(batch_i + 1):4}/{num_batches_to_eval} complete. '
-                          f'Mean loss: {(eval_loss / (batch_i + 1)):3.5f} '
-                          f'Mean acc: {(eval_acc / (batch_i + 1)):3.5f} '
-                          f'Mean perplexity: {(eval_perplexity / (batch_i + 1)):3.5f} '
-                          f'Time: {(time.time() - start_time):3.5f}.')
-                    start_time = time.time()
+            logits = outputs.logits
+            predictions = torch.argmax(logits, dim=-1)
 
-        # print(f'Num batches: {num_batches_to_eval}')
-        mean_loss = round(eval_loss / num_batches_to_eval, 2)
-        mean_acc = round(eval_acc / num_batches_to_eval, 2)
-        mean_perplexity = round(eval_perplexity / num_batches_to_eval, 2)
-        print(f'Evaluation results: mean loss: {mean_loss}, mean_acc: {mean_acc}, mean perplexity: {mean_perplexity}')
 
-    #def al_train(self):
+            for metric in self.metrics:
+                metric.add_batch(predictions=predictions, references=next_batch["labels"])
+
+            eval_loss.append(loss.item())
+            pbar.set_description(f'Mean loss: {np.mean(eval_loss)}')
+            pbar.update(1)
+
+        for metric in self.metrics:
+            metric.compute()
+            print(f'Metric: {metric}')
+
+#def al_train(self):
