@@ -6,11 +6,12 @@ from active_learning_trainer import ALTrainer
 from transformers import AutoTokenizer
 from dataset import Dataset
 from model import Model
+from strategies import RandomStrategy
 
 if __name__ == '__main__':
 
     parameters = dict()
-    parameters['pretrained_model_name'] = 'distilbert-base-uncased'
+    parameters['pretrained_model_name'] = 'prajjwal1/bert-tiny' #'distilbert-base-uncased'
     parameters['dataset_label_column_name'] = 'sentiment'
     parameters['dataset_text_column_name'] = 'review'
 
@@ -18,11 +19,21 @@ if __name__ == '__main__':
     parameters['val_dataset_file_path'] = 'data/imdb/test_IMDB.csv'
     parameters['test_dataset_file_path'] = 'data/imdb/test_IMDB.csv'
 
-    parameters['train_batch_size'] = 32
-    parameters['val_batch_size'] = 64
-    parameters['test_batch_size'] = 64
+    parameters['train_batch_size'] = 4
+    parameters['val_batch_size'] = 4
+    parameters['test_batch_size'] = 4
     parameters['epochs'] = 5
     parameters['finetuned_model_type'] = 'classification'
+
+    parameters['al_iterations'] = 5
+    parameters['init_dataset_size'] = 100
+    parameters['add_dataset_size'] = 100
+    parameters['al_strategy'] = 'random'
+    parameters['debug'] = True
+
+
+
+
 
     tokenizer = AutoTokenizer.from_pretrained(parameters['pretrained_model_name'])
 
@@ -38,6 +49,10 @@ if __name__ == '__main__':
         data_files,
         delimiter=','
     )
+
+    dataset_obj.truncate_dataset('train', 1000)
+    dataset_obj.truncate_dataset('val', 1000)
+    dataset_obj.truncate_dataset('test', 1000)
 
     dataset_obj.prepare_labels(parameters['dataset_label_column_name'])
     dataset_obj.encode_dataset(parameters['dataset_text_column_name'])
@@ -82,4 +97,18 @@ if __name__ == '__main__':
     trainer.add_evaluation_metric(load_metric('f1'))
     trainer.add_evaluation_metric(load_metric('precision'))
     trainer.add_evaluation_metric(load_metric('recall'))
-    trainer.train_model(parameters['epochs'])
+
+    trainer.al_train(
+        al_iterations=parameters['al_iterations'],
+        init_dataset_size=parameters['init_dataset_size'],
+        add_dataset_size=parameters['add_dataset_size'],
+        train_epochs=parameters['epochs'],
+        strategy=parameters['al_strategy'],
+        train_batch_size=parameters['train_batch_size'],
+        val_batch_size=parameters['val_batch_size'],
+        test_batch_size=parameters['test_batch_size'],
+        debug=parameters['debug']
+    )
+   # trainer.train_model(parameters['epochs'])
+
+    #al_strategy = RandomStrategy(model, )
