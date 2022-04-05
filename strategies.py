@@ -6,6 +6,8 @@ from scipy.stats import entropy
 from scipy import stats
 from sklearn.metrics import pairwise_distances
 import pdb
+import torch
+import tqdm
 
 
 from datasets import concatenate_datasets
@@ -25,6 +27,101 @@ from transformers import BertConfig
 
 config = BertConfig.from_pretrained('bert-base-multilingual-uncased', num_labels=12)
 
+class _Strategy:
+
+    def __init__(
+            self,
+            model,
+            unlabelled_dataset_dataloader,
+            unlabelled_dataset_length,
+            device,
+
+    ):
+
+        self.model = model
+        self.unlabelled_dataset_dataloader = unlabelled_dataset_dataloader
+        self.unlabelled_dataset_length = unlabelled_dataset_length
+        self.device = device
+
+
+    def create_logits(self):
+        model = self.model.model
+        model.eval()
+
+        num_batches = len(self.unlabelled_dataset_dataloader)
+        logits_all = []
+        pbar = tqdm.trange(
+            num_batches,
+            desc="AL evaluation iteration",
+            smoothing=0.05,
+            disable=False,
+            position=0,
+            leave=True
+        )
+
+        batch_i = 0
+        for next_batch in self.unlabelled_dataset_dataloader:
+            next_batch = {k: v.to(self.device) for k, v in next_batch.items()}
+            with torch.no_grad():
+                outputs = model(**next_batch)
+            loss = outputs.loss
+
+            logits = outputs.logits
+            logits_all = torch.cat(logits_all, logits)
+
+            #predictions = torch.argmax(logits, dim=-1)
+            batch_i += 1
+            pbar.update(1)
+            pbar.set_description(f'Batch {batch_i:5}/{num_batches}')
+
+        self.logits = logits_all
+
+    def query(self, n):
+        '''
+        Query the indices of unlabelled data for adding to AL dataset
+        :param n:
+        :return:
+        '''
+
+        raise NotImplementedError
+        # ## TODO: max range by logits
+        # random_choice = np.random.choice(
+        #     range(0, len(self.dataset_obj.al_train_dataset['unlabelled'])),
+        #     n,
+        #     replace=False
+        # ).tolist()
+        #
+        # return random_choice
+
+
+#class MaximumEntropyStrategy(_Strategy):
+
+
+class RandomStrategy(_Strategy):
+
+    def __init__(self, model, dataloader, dataset_len, device):
+        super().__init__(model, dataloader, dataset_len, device)
+
+        print('AL Random strategy applied!')
+
+    def update_dataloader(self, new_dataloader):
+        self.unlabelled_dataset_dataloader = new_dataloader
+
+    def update_dataset_len(self, new_dataset_len):
+        self.unlabelled_dataset_length = new_dataset_len
+
+    def query(self, n):
+
+        #self.create_logits()
+        print(f'Selecting {n} indices from {self.unlabelled_dataset_length} ')
+        ## TODO: max range by logits
+        random_choice = np.random.choice(
+            self.unlabelled_dataset_length,
+            n,
+            replace=False
+        ).tolist()
+
+        return random_choice
 
 class Strategy:
 
@@ -55,6 +152,37 @@ class Strategy:
 
 
         return top_n_indices
+
+    def prepare_al_datasets(self, al_init_dataset_size):
+        train_dataset_length = len(self.dataset['train'])
+
+        if 'index' not in self.dataset['train'].features.keys():
+            self.dataset['train'] = self.dataset['train'].add_column(
+                'index',
+                list(range(0, train_dataset_length))
+            )
+
+        selected_indices = choice(
+            range(0, train_dataset_length),
+            al_init_dataset_size,
+            replace=False
+        )
+
+        self.al_train_dataset_indices = selected_indices.tolist()
+
+        al_train_dataset = self.dataset['train'].filter(lambda example: example['index'] in selected_indices)
+        al_train_dataset = al_train_dataset.map(lambda ex, ind: {'dataset_index': ind}, with_indices=True)#['index_dataset']
+        rest_dataset = self.dataset['train'].filter(lambda example: example['index'] not in selected_indices)
+        rest_dataset = rest_dataset.map(lambda ex, ind: {'dataset_index': ind}, with_indices=True)#['index_dataset']
+
+        self.al_train_dataset = {
+            'train': al_train_dataset,
+            'unlabelled': rest_dataset
+        }
+
+        print(f'AL train dataset length: {len(al_train_dataset)}, rest dataset length: {len(rest_dataset)}')
+        assert len(al_train_dataset) + len(rest_dataset) == len(self.dataset['train'])
+
 
 
     def run_strategy(
