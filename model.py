@@ -45,6 +45,7 @@ class Model:
         self.model_name = model_name
         self.config = config
         self.model_type = model_type
+        self.num_labels = num_labels
 
         self.reinit_model(model_name, config, num_labels)
 
@@ -56,6 +57,9 @@ class Model:
             config = self.config
         elif not isinstance(config, PretrainedConfig):
             config = None
+
+        if num_labels is None:
+            num_labels = self.num_labels
 
         if self.model_type == self.CLASSIFICATION_MODEL_TYPE:
             self.model = AutoModelForSequenceClassification.from_pretrained(

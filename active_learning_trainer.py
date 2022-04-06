@@ -10,6 +10,8 @@ import datasets
 from dataset import Dataset
 from datasets import concatenate_datasets
 
+import sys
+
 from strategies import *
 
 
@@ -84,8 +86,17 @@ class ALTrainer:
     def set_optimizer(self, optimizer:torch.optim.Optimizer):
         self.optimizer = optimizer
 
-    def set_lr_scheduler(self, scheduler:torch.optim.lr_scheduler._LRScheduler):
-        self.lr_scheduler = scheduler
+    # TODO: solve this issue and return LR scheduler back to training pipeline
+    def set_lr_scheduler(self, scheduler, warmup_steps = 0):
+        # if isinstance(scheduler, str):
+        #     if scheduler.lower().strip() == 'linear':
+        #         lr_scheduler = get_scheduler(
+        #             name="linear",
+        #             optimizer=self.optimizer,
+        #             num_warmup_steps=warmup_steps,
+        #             num_training_steps=num_training_steps
+        #         )
+        self.lr_scheduler = None
 
     def send_model_to_devide(self):
         self.determine_device()
@@ -120,6 +131,10 @@ class ALTrainer:
             debug = False
     ):
 
+        print(f'Training initialized!')
+
+        self.train_batch_size = train_batch_size
+
         self.prepare_al_datasets(init_dataset_size)
         self.prepare_dataloaders(
             train_batch_size=train_batch_size,
@@ -127,6 +142,12 @@ class ALTrainer:
             test_batch_size=test_batch_size,
             al=True
         )
+
+        print(f'Training is run on {len(self.train_dataloader)} batches!')
+        print(f'Evaluation is run on {len(self.val_dataloader)} batches!')
+        print(f'Testing is run on {len(self.test_dataloader)} batches!')
+
+        print(f'\n=========================\n')
 
         if isinstance(strategy, str):
 
@@ -137,10 +158,33 @@ class ALTrainer:
                     len(self.al_train_dataset['unlabelled']),
                     self.device
                 )
+            elif strategy.lower().strip() == 'least_confidence':
+                strategy = LeastConfidence(
+                    self.model,
+                    self.unlabelled_dataloader,
+                    len(self.al_train_dataset['unlabelled']),
+                    self.device
+                )
+            elif strategy.lower().strip() == 'badge':
+
+                strategy = BadgeSampling(
+                    self.model,
+                    self.unlabelled_dataloader,
+                    len(self.al_train_dataset['unlabelled']),
+                    self.device,
+                    num_labels=self.model.num_labels,
+                    embedding_dim=self.model.model.config.hidden_size,
+                    batch_size=train_batch_size
+                )
+
+
+            else:
+                pass
 
 
 
         for al_iteration in range(al_iterations):
+            print(f'\n===========================================================')
             print(f'\nAL iteration {al_iteration:3}/{al_iterations}')
 
 
@@ -161,6 +205,7 @@ class ALTrainer:
 
             strategy.update_dataloader(self.unlabelled_dataloader)
             strategy.update_dataset_len(len(self.al_train_dataset['unlabelled']))
+
             indices = strategy.query(
                 add_dataset_size
             )
@@ -171,6 +216,7 @@ class ALTrainer:
             al_unlabelled_dataset_size_before = len(self.al_train_dataset['unlabelled'])
 
             print(f'Before updating AL datasets: train size = {al_train_dataset_size_before}, unlabelled size = {al_unlabelled_dataset_size_before}, sum: {al_train_dataset_size_before + al_unlabelled_dataset_size_before} ')
+
             self.update_al_datasets_with_new_batch(
                 indices_to_add=indices
             )
@@ -178,7 +224,7 @@ class ALTrainer:
             al_train_dataset_size_after = len(self.al_train_dataset['train'])
             al_unlabelled_dataset_size_after = len(self.al_train_dataset['unlabelled'])
 
-            print(f'Updated AL datasets: train size = {al_train_dataset_size_after}, unlabelled size = {al_unlabelled_dataset_size_after}, sum: {al_train_dataset_size_after + al_unlabelled_dataset_size_after} ')
+            print(f'\nUpdated AL datasets: train size = {al_train_dataset_size_after}, unlabelled size = {al_unlabelled_dataset_size_after}, sum: {al_train_dataset_size_after + al_unlabelled_dataset_size_after} ')
 
             assert (
                 (al_train_dataset_size_before + al_unlabelled_dataset_size_before)
@@ -200,7 +246,12 @@ class ALTrainer:
             evaluation_steps_num = -1,
     ):
 
+        self.model.reinit_model()
+
         model = self.model.model
+        optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
+        self.set_optimizer(optimizer)
+        print(f'Model initialized.')
 
         if self.device == 'cuda':
             torch.cuda.empty_cache()
@@ -217,12 +268,13 @@ class ALTrainer:
             start_time = time.time()
 
             pbar = tqdm.trange(
-                steps_per_epoch,
+                len(self.train_dataloader),
                 desc="Iteration",
                 smoothing=0.05,
                 disable=False,
                 position=0,
-                leave=True
+                leave=True,
+                file=sys.stdout
             )
 
             step_i = 0
@@ -260,13 +312,13 @@ class ALTrainer:
                 #     #      epoch_i, batch_i, num_batches_per_epoch, loss.item(), batch_accuracy, math.exp(loss.item())))
                 #     # # total_loss = 0
                 #     start_time = time.time()
-                pbar.set_description(f'Mean loss: {np.mean(losses_list)}')
+                pbar.set_description(f'Training mean loss: {np.mean(losses_list)}')
                 pbar.update(1)
 
                 step_i += 1
                 if step_i == steps_per_epoch:
                     break
-            print(f'Epoch finished. Evaluation:')
+            print(f'\n\nEpoch finished. Evaluation:')
 
             if evaluation_steps_num == -1:
                 evaluation_steps_num = len(self.val_dataloader)
@@ -311,22 +363,23 @@ class ALTrainer:
 
         start_time = time.time()
 
-        print(f'Evaluation is run on {num_batches_to_eval} batches!')
+
 
         pbar = tqdm.trange(
             num_batches_to_eval,
-            desc="Iteration",
+            #desc="Iteration",
             smoothing=0.05,
             disable=False,
             position=0,
-            leave=True
+            leave=True,
+            file=sys.stdout
         )
 
         eval_loss = []
 
         batch_i = 0
 
-        for next_batch in self.train_dataloader:
+        for next_batch in self.val_dataloader:
             next_batch = {k: v.to(self.device) for k, v in next_batch.items()}
             with torch.no_grad():
                 outputs = model(**next_batch)
@@ -340,14 +393,14 @@ class ALTrainer:
                 metric.add_batch(predictions=predictions, references=next_batch["labels"])
 
             eval_loss.append(loss.item())
-            pbar.set_description(f'Mean loss: {np.mean(eval_loss)}')
+            pbar.set_description(f'Evaluation mean loss: {np.mean(eval_loss)}')
             pbar.update(1)
 
             batch_i += 1
             if batch_i == num_batches_to_eval:
                 break
 
-        print(f'Metrics')
+        print(f'\nMetrics')
         for metric in self.metrics:
             result = metric.compute()
             print(f'{result}')

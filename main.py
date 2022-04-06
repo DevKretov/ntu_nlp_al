@@ -19,17 +19,17 @@ if __name__ == '__main__':
     parameters['val_dataset_file_path'] = 'data/imdb/test_IMDB.csv'
     parameters['test_dataset_file_path'] = 'data/imdb/test_IMDB.csv'
 
-    parameters['train_batch_size'] = 4
-    parameters['val_batch_size'] = 4
-    parameters['test_batch_size'] = 4
+    parameters['train_batch_size'] = 32
+    parameters['val_batch_size'] = 64
+    parameters['test_batch_size'] = 64
     parameters['epochs'] = 5
     parameters['finetuned_model_type'] = 'classification'
 
-    parameters['al_iterations'] = 5
-    parameters['init_dataset_size'] = 100
-    parameters['add_dataset_size'] = 100
-    parameters['al_strategy'] = 'random'
-    parameters['debug'] = True
+    parameters['al_iterations'] = 10
+    parameters['init_dataset_size'] = 1000
+    parameters['add_dataset_size'] = 500
+    parameters['al_strategy'] = 'badge' #'least_confidence'
+    parameters['debug'] = False
 
 
 
@@ -50,9 +50,9 @@ if __name__ == '__main__':
         delimiter=','
     )
 
-    dataset_obj.truncate_dataset('train', 1000)
-    dataset_obj.truncate_dataset('val', 1000)
-    dataset_obj.truncate_dataset('test', 1000)
+    dataset_obj.truncate_dataset('train', 10000)
+    dataset_obj.truncate_dataset('val', 10000)
+    dataset_obj.truncate_dataset('test', 10000)
 
     dataset_obj.prepare_labels(parameters['dataset_label_column_name'])
     dataset_obj.encode_dataset(parameters['dataset_text_column_name'])
