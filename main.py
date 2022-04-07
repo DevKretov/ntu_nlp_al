@@ -28,7 +28,8 @@ if __name__ == '__main__':
     parameters['al_iterations'] = 10
     parameters['init_dataset_size'] = 1000
     parameters['add_dataset_size'] = 100
-    parameters['al_strategy'] = 'badge' #'least_confidence'
+    parameters['al_strategy'] = 'entropy' #'least_confidence'
+    parameters['full_train'] = False
     parameters['debug'] = False
 
 
@@ -98,13 +99,14 @@ if __name__ == '__main__':
     trainer.add_evaluation_metric(load_metric('precision'))
     trainer.add_evaluation_metric(load_metric('recall'))
 
-    trainer.full_train(
-        train_epochs=parameters['epochs'],
-        train_batch_size=parameters['train_batch_size'],
-        val_batch_size=parameters['val_batch_size'],
-        test_batch_size=parameters['test_batch_size'],
-        debug=parameters['debug']
-    )
+    if parameters['full_train']:
+        trainer.full_train(
+            train_epochs=parameters['epochs'],
+            train_batch_size=parameters['train_batch_size'],
+            val_batch_size=parameters['val_batch_size'],
+            test_batch_size=parameters['test_batch_size'],
+            debug=parameters['debug']
+        )
 
     trainer.al_train(
         al_iterations=parameters['al_iterations'],

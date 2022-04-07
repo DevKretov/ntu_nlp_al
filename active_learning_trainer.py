@@ -358,20 +358,6 @@ class ALTrainer:
                     self.lr_scheduler.step()
                 self.optimizer.zero_grad()
 
-
-
-                # if batch_i % print_train_stats_each == 0 and batch_i > 0:
-                #     print(f'Train Epoch {epoch_i:3d}, batch {(batch_i + 1):4}/{num_batches_per_epoch} complete. '
-                #           f'Mean loss: {(total_loss / (batch_i + 1)):3.5f} '
-                #           f'Mean acc: {(total_acc / (batch_i + 1)):3.5f} '
-                #           f'Mean perplexity: {(total_perplexity / (batch_i + 1)):3.5f} '
-                #           f'Time: {(time.time() - start_time):3.5f}.')
-                #
-                #     #  print('| epoch {:3d} | {:5d}/{:5d} batches  | '
-                #     #        'loss {:5.2f} | acc {:0.2f} | ppl {:8.2f}'.format(
-                #     #      epoch_i, batch_i, num_batches_per_epoch, loss.item(), batch_accuracy, math.exp(loss.item())))
-                #     # # total_loss = 0
-                #     start_time = time.time()
                 pbar.set_description(f'Training mean loss: {np.mean(losses_list)}')
                 pbar.update(1)
 

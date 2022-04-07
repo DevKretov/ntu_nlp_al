@@ -157,7 +157,7 @@ class BadgeSampling(_Strategy):
         self.embedding_dim = embedding_dim
         self.batch_size = batch_size
 
-        print('AL Least confidence strategy applied!')
+        print('AL BADGE strategy applied!')
 
     def update_dataloader(self, new_dataloader):
         self.unlabelled_dataset_dataloader = new_dataloader
