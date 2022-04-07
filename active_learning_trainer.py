@@ -111,6 +111,49 @@ class ALTrainer:
     def add_evaluation_metric(self, metric_obj):
         self.metrics.append(metric_obj)
 
+
+    def full_train(
+            self,
+            train_epochs = 10,
+            train_batch_size = 32,
+            val_batch_size = 64,
+            test_batch_size = 64,
+            debug = False
+    ):
+
+        print(f'Full training initialized!')
+
+        self.train_batch_size = train_batch_size
+
+        self.prepare_dataloaders(
+            train_batch_size=train_batch_size,
+            val_batch_size=val_batch_size,
+            test_batch_size=test_batch_size,
+            al=False
+        )
+
+        print(f'Training is run on {len(self.train_dataloader)} batches!')
+        print(f'Evaluation is run on {len(self.val_dataloader)} batches!')
+        print(f'Testing is run on {len(self.test_dataloader)} batches!')
+
+        print(f'\n=========================\n')
+
+        steps_per_epoch = -1
+        evaluation_steps = -1
+        if debug:
+            steps_per_epoch = 5
+            evaluation_steps = 5
+
+        self.train_model(
+            epochs=train_epochs,
+            steps_per_epoch=steps_per_epoch,
+            evaluation_steps_num=evaluation_steps
+
+        )
+
+        print(f'\nFull training finished')
+
+
     # TODO: if init_dataset_size is integer, take init_dataset_size samples to initial al dataset
     # TODO: if init_dataset_size is float [0.0, 1.0], take ratio
     # TODO: if add_dataset_size is integer, take add_dataset_size from unlabelled and "label" these data
@@ -177,6 +220,23 @@ class ALTrainer:
                     batch_size=train_batch_size
                 )
 
+            elif strategy.lower().strip() == 'entropy':
+                strategy = EntropySampling(
+                    self.model,
+                    self.unlabelled_dataloader,
+                    len(self.al_train_dataset['unlabelled']),
+                    self.device
+                )
+            elif strategy.lower().strip() == 'kmeans':
+                strategy = KMeansSampling(
+                    self.model,
+                    self.unlabelled_dataloader,
+                    len(self.al_train_dataset['unlabelled']),
+                    self.device,
+                    num_labels=self.model.num_labels,
+                    embedding_dim=self.model.model.config.hidden_size,
+                    batch_size=train_batch_size
+                )
 
             else:
                 pass
@@ -185,7 +245,7 @@ class ALTrainer:
 
         for al_iteration in range(al_iterations):
             print(f'\n===========================================================')
-            print(f'\nAL iteration {al_iteration:3}/{al_iterations}')
+            print(f'\nAL iteration {(al_iteration + 1):3}/{al_iterations}')
 
 
             steps_per_epoch = -1
@@ -262,7 +322,7 @@ class ALTrainer:
 
         for epoch_i in range(epochs):
             model.train()
-            print(f'\nEpoch {epoch_i:3}')
+            print(f'\n\nEpoch {(epoch_i + 1):3}')
 
             losses_list =  []
             start_time = time.time()
@@ -323,48 +383,34 @@ class ALTrainer:
             if evaluation_steps_num == -1:
                 evaluation_steps_num = len(self.val_dataloader)
 
-            self.evaluate(num_batches_to_eval=evaluation_steps_num)
-            # mean_loss = round(total_loss / num_batches_per_epoch, 2)
-            # mean_acc = round(total_acc / num_batches_per_epoch, 2)
-          #  print(f'Training results: mean loss: {mean_loss}, mean_acc: {mean_acc}')
+            self.evaluate(
+                num_batches_to_eval=evaluation_steps_num,
+                dataloader=self.val_dataloader,
+                print_metrics=False,
+                mode='Eval'
+            )
 
-        #     if epoch_i % eval_each == 0:
-        #
-        #         val_loss, val_perplexity = self.evaluate(num_batches_to_eval=num_batches_to_eval_on)
-        #
-        #         # Save the model if the validation loss is the best we've seen so far.
-        #         if not best_val_perplexity or val_perplexity < best_val_perplexity:
-        #             print(
-        #                 f'Saving the best model! Perplexity: {val_perplexity:3.5f} vs best perplexity {best_val_perplexity}')
-        #             with open(self.save_model_dir_path / self.best_model_name, 'wb') as f:
-        #                 torch.save(self.model, f)
-        #             best_val_perplexity = val_perplexity
-        #             no_improvement_epoch = 0
-        #         else:
-        #             no_improvement_epoch += 1
-        #
-        #             if early_stopping_tolerance != -1 and no_improvement_epoch > early_stopping_tolerance:
-        #                 print(
-        #                     f'Stopping training! {no_improvement_epoch} epochs no improvement, tolerance was {early_stopping_tolerance}')
-        #                 break
-        # best_model_path = str(self.save_model_dir_path / self.best_model_name)
-        #return best_model_path
+        print(f'Test set evaluation:')
+        self.evaluate(
+            num_batches_to_eval=-1,
+            dataloader=self.test_dataloader,
+            print_metrics=True,
+            mode='Test'
+        )
 
-    def evaluate(self, num_batches_to_eval=-1, print_every=100):
+
+    def evaluate(self, num_batches_to_eval=-1, dataloader = None, print_metrics = False, mode = 'Eval'):
 
         model = self.model.model
 
-        print(f'Running evaluation...')
-        if num_batches_to_eval == -1:
-            num_batches_to_eval = len(self.val_dataloader)
+        if dataloader is None:
+            dataloader = self.val_dataloader
 
+        print(f'Running {mode} mode...')
+        if num_batches_to_eval == -1:
+            num_batches_to_eval = len(dataloader)
 
         model.eval()
-
-        start_time = time.time()
-
-
-
         pbar = tqdm.trange(
             num_batches_to_eval,
             #desc="Iteration",
@@ -379,7 +425,7 @@ class ALTrainer:
 
         batch_i = 0
 
-        for next_batch in self.val_dataloader:
+        for next_batch in dataloader:
             next_batch = {k: v.to(self.device) for k, v in next_batch.items()}
             with torch.no_grad():
                 outputs = model(**next_batch)
@@ -393,17 +439,18 @@ class ALTrainer:
                 metric.add_batch(predictions=predictions, references=next_batch["labels"])
 
             eval_loss.append(loss.item())
-            pbar.set_description(f'Evaluation mean loss: {np.mean(eval_loss)}')
+            pbar.set_description(f'{mode} mean loss: {np.mean(eval_loss)}')
             pbar.update(1)
 
             batch_i += 1
             if batch_i == num_batches_to_eval:
                 break
 
-        print(f'\nMetrics')
-        for metric in self.metrics:
-            result = metric.compute()
-            print(f'{result}')
+        if print_metrics:
+            print(f'\nMetrics')
+            for metric in self.metrics:
+                result = metric.compute()
+                print(f'{result}')
         print()
 
     def prepare_al_datasets(

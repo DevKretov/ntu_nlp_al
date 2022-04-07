@@ -11,6 +11,7 @@ import torch.nn.functional as F
 import tqdm
 import sys
 from sklearn.metrics import pairwise_distances
+from sklearn.cluster import KMeans
 from transformers import BertForSequenceClassification
 
 from datasets import concatenate_datasets
@@ -206,7 +207,14 @@ class BadgeSampling(_Strategy):
             next_batch = {k: v.to(self.device) for k, v in next_batch.items()}
 
             y = next_batch['labels']
-            idxs = np.arange(batch_i * self.batch_size, (batch_i + 1) * self.batch_size)
+            #idxs = np.arange(batch_i * self.batch_size, (batch_i + 1) * self.batch_size)
+            idxs = np.arange(
+                batch_i * self.batch_size,
+                min(
+                    (batch_i + 1) * self.batch_size,
+                    self.unlabelled_dataset_length
+                )
+            )
 
             with torch.no_grad():
                 outputs = model(**next_batch, output_hidden_states=True)
@@ -234,26 +242,115 @@ class BadgeSampling(_Strategy):
             pbar.set_description(f'AL evaluation iteration. Batch {batch_i:5}/{num_batches}')
 
         return torch.Tensor(embedding)
-    #
-    # with torch.no_grad():
-    #
-    #
-    #
-    #
-    #
-    #         for next_batch in self.unlabelled_dataset_dataloader:
-    #             x, y = Variable(x.cuda()), Variable(y.cuda())
-    #             cout, out = self.clf(x)
-    #             out = out.data.cpu().numpy()
-    #             batchProbs = F.softmax(cout, dim=1).data.cpu().numpy()
-    #             maxInds = np.argmax(batchProbs,1)
-    #             for j in range(len(y)):
-    #                 for c in range(nLab):
-    #                     if c == maxInds[j]:
-    #                         embedding[idxs[j]][embDim * c : embDim * (c+1)] = deepcopy(out[j]) * (1 - batchProbs[j][c])
-    #                     else:
-    #                         embedding[idxs[j]][embDim * c : embDim * (c+1)] = deepcopy(out[j]) * (-1 * batchProbs[j][c])
-    #         return torch.Tensor(embedding)
+
+
+class KMeansSampling(_Strategy):
+
+    def __init__(self, model, dataloader, dataset_len, device, num_labels, embedding_dim, batch_size):
+        super().__init__(model, dataloader, dataset_len, device)
+
+        self.num_labels = num_labels
+        self.embedding_dim = embedding_dim
+        self.batch_size = batch_size
+
+        print('AL K Means strategy applied!')
+
+    def update_dataloader(self, new_dataloader):
+        self.unlabelled_dataset_dataloader = new_dataloader
+
+    def update_dataset_len(self, new_dataset_len):
+        self.unlabelled_dataset_length = new_dataset_len
+
+    def query(self, n):
+
+        embedding = self.get_embedding()
+        embedding = embedding#.numpy()
+        cluster_learner = KMeans(n_clusters=n)
+        cluster_learner.fit(embedding)
+
+        cluster_idxs = cluster_learner.predict(embedding)
+        centers = cluster_learner.cluster_centers_[cluster_idxs]
+        dis = (embedding - centers) ** 2
+        dis = dis.sum(axis=1)
+        q_idxs = np.array(
+            [np.arange(embedding.shape[0])[cluster_idxs == i][dis[cluster_idxs == i].argmin()] for i in range(n)])
+
+        return q_idxs
+
+    def get_embedding(self):
+
+        embedding = np.zeros([self.unlabelled_dataset_length, self.embedding_dim])
+
+        batch_i = 0
+
+        model = self.model.model
+        model.eval()
+
+        num_batches = len(self.unlabelled_dataset_dataloader)
+        print('AL evaluation iteration')
+        pbar = tqdm.trange(
+            num_batches,
+            desc="AL evaluation iteration",
+            smoothing=0.05,
+            disable=False,
+            position=0,
+            leave=True,
+            file=sys.stdout
+        )
+
+        for next_batch in self.unlabelled_dataset_dataloader:
+            next_batch = {k: v.to(self.device) for k, v in next_batch.items()}
+
+            y = next_batch['labels']
+            idxs = np.arange(
+                batch_i * self.batch_size,
+                min(
+                    (batch_i + 1) * self.batch_size,
+                    self.unlabelled_dataset_length
+                )
+            )
+
+            with torch.no_grad():
+                outputs = model(**next_batch, output_hidden_states=True)
+              #  outputs = model(**next_batch)
+            loss = outputs.loss
+            logits = outputs.logits
+
+            out_np = np.mean(outputs[2][-1].data.cpu().numpy(), axis=1)
+
+            embedding[idxs] = out_np
+
+            batch_i += 1
+            pbar.update(1)
+            pbar.set_description(f'AL evaluation iteration. Batch {batch_i:5}/{num_batches}')
+
+        return embedding
+
+    pass
+
+class EntropySampling(_Strategy):
+    def __init__(self, model, dataloader, dataset_len, device):
+        super().__init__(model, dataloader, dataset_len, device)
+
+        print('AL Least confidence strategy applied!')
+
+    def update_dataloader(self, new_dataloader):
+        self.unlabelled_dataset_dataloader = new_dataloader
+
+    def update_dataset_len(self, new_dataset_len):
+        self.unlabelled_dataset_length = new_dataset_len
+
+    def query(self, n):
+
+        print(f'Selecting {n} indices from {self.unlabelled_dataset_length} ')
+        self.create_logits()
+
+        assert self.logits is not None and self.probs is not None, 'Cannot process until these variables are initialized'
+
+        #max_probs = self.probs.max(dim=1)[0]
+        log_probs = torch.log(self.probs)
+        U = (self.probs * log_probs).sum(1)
+        return U.sort()[1][:n]
 
 
 class LeastConfidence(_Strategy):
@@ -279,6 +376,7 @@ class LeastConfidence(_Strategy):
         indices = max_probs.sort()[1][:n]
 
         return indices
+
 
 
 class RandomStrategy(_Strategy):
