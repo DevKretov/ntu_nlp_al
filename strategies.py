@@ -17,6 +17,9 @@ from transformers import BertForSequenceClassification
 from datasets import concatenate_datasets
 from datasets import load_dataset
 
+from pathlib import Path
+import json
+
 from copy import deepcopy
 
 from transformers import BertTokenizerFast
@@ -49,6 +52,10 @@ class _Strategy:
         self.unlabelled_dataset_length = unlabelled_dataset_length
         self.device = device
 
+        self.log_output_folder = 'al_strategies_log'
+        self.log_output_folder_path = Path(self.log_output_folder)
+
+        self.log_output_folder_path.mkdir(exist_ok=True)
 
 
     def create_logits(self):
@@ -119,34 +126,6 @@ class _Strategy:
 
 
 
-def init_centers(X, K):
-    ind = np.argmax([np.linalg.norm(s, 2) for s in X])
-    mu = [X[ind]]
-    indsAll = [ind]
-    centInds = [0.] * len(X)
-    cent = 0
-    print('#Samps\tTotal Distance')
-    while len(mu) < K:
-        if len(mu) == 1:
-            D2 = pairwise_distances(X, mu).ravel().astype(float)
-        else:
-            newD = pairwise_distances(X, [mu[-1]]).ravel().astype(float)
-            for i in range(len(X)):
-                if D2[i] >  newD[i]:
-                    centInds[i] = cent
-                    D2[i] = newD[i]
-       # print(str(len(mu)) + '\t' + str(sum(D2)), flush=True)
-        if sum(D2) == 0.0: pdb.set_trace()
-        D2 = D2.ravel().astype(float)
-        Ddist = (D2 ** 2)/ sum(D2 ** 2)
-        customDist = stats.rv_discrete(name='custm', values=(np.arange(len(D2)), Ddist))
-        ind = customDist.rvs(size=1)[0]
-        while ind in indsAll: ind = customDist.rvs(size=1)[0]
-        mu.append(X[ind])
-        indsAll.append(ind)
-        cent += 1
-    return indsAll
-
 
 class BadgeSampling(_Strategy):
     def __init__(self, model, dataloader, dataset_len, device, num_labels, embedding_dim, batch_size):
@@ -157,6 +136,11 @@ class BadgeSampling(_Strategy):
         self.embedding_dim = embedding_dim
         self.batch_size = batch_size
 
+        self.query_i = 0
+        self.name = 'badge'
+        self.strategy_log_folder_file = self.log_output_folder_path / self.name
+        self.strategy_log_folder_file.mkdir(exist_ok=True)
+
         print('AL BADGE strategy applied!')
 
     def update_dataloader(self, new_dataloader):
@@ -165,10 +149,51 @@ class BadgeSampling(_Strategy):
     def update_dataset_len(self, new_dataset_len):
         self.unlabelled_dataset_length = new_dataset_len
 
+    def init_centers(self, X, K):
+        distances = []
+        ind = np.argmax([np.linalg.norm(s, 2) for s in X])
+        mu = [X[ind]]
+        indsAll = [ind]
+        distances.append(0)
+        centInds = [0.] * len(X)
+        cent = 0
+       # print('#Samps\tTotal Distance')
+        while len(mu) < K:
+            if len(mu) == 1:
+                D2 = pairwise_distances(X, mu).ravel().astype(float)
+            else:
+                newD = pairwise_distances(X, [mu[-1]]).ravel().astype(float)
+                for i in range(len(X)):
+                    if D2[i] >  newD[i]:
+                        centInds[i] = cent
+                        D2[i] = newD[i]
+           # print(str(len(mu)) + '\t' + str(sum(D2)), flush=True)
+            if sum(D2) == 0.0: pdb.set_trace()
+            D2 = D2.ravel().astype(float)
+            Ddist = (D2 ** 2)/ sum(D2 ** 2)
+            customDist = stats.rv_discrete(name='custm', values=(np.arange(len(D2)), Ddist))
+            ind = customDist.rvs(size=1)[0]
+            while ind in indsAll: ind = customDist.rvs(size=1)[0]
+            mu.append(X[ind])
+            distances.append(D2[ind])
+            indsAll.append(ind)
+            cent += 1
+        return indsAll, distances
+
     def query(self, n):
        # idxs_unlabeled = np.arange(self.n_pool)[~self.idxs_lb]
         gradEmbedding = self.get_grad_embedding().numpy()
-        chosen = init_centers(gradEmbedding, n)
+        chosen, distances = self.init_centers(gradEmbedding, n)
+
+        self.query_i += 1
+        self.query_i_name = f'{self.query_i}.json'
+        json.dump(
+            distances,
+            open(f'{str(self.strategy_log_folder_file / self.query_i_name)}', 'w'),
+            sort_keys=True,
+            indent=4
+        )
+
         return chosen
 
     def get_grad_embedding(self):
@@ -219,9 +244,14 @@ class BadgeSampling(_Strategy):
             with torch.no_grad():
                 outputs = model(**next_batch, output_hidden_states=True)
               #  outputs = model(**next_batch)
+                # TODO: change pooler and try to take unpooled last hidden state (take the first vector or MEAN of those with attention mask equal 1)
+                #hidden_states_pooled = model.bert.pooler(outputs.hidden_states[-1])
+                hidden_states_pooled = outputs.hidden_states[-1][:, 0].data.cpu().numpy()
+
             loss = outputs.loss
             logits = outputs.logits
-            out_np = np.mean(outputs[2][-1].data.cpu().numpy(), axis=1)
+            #out_np = np.mean(outputs[2][-1].data.cpu().numpy(), axis=1)
+            out_np = hidden_states_pooled
             out = outputs[0]
 
            # hidden_states = outputs.hidden_states[-1]#.shape
@@ -253,6 +283,11 @@ class KMeansSampling(_Strategy):
         self.embedding_dim = embedding_dim
         self.batch_size = batch_size
 
+        self.query_i = 0
+        self.name = 'k_means'
+
+        self.strategy_log_folder_file = self.log_output_folder_path / self.name
+        self.strategy_log_folder_file.mkdir(exist_ok=True)
         print('AL K Means strategy applied!')
 
     def update_dataloader(self, new_dataloader):
@@ -332,7 +367,12 @@ class EntropySampling(_Strategy):
     def __init__(self, model, dataloader, dataset_len, device):
         super().__init__(model, dataloader, dataset_len, device)
 
-        print('AL Least confidence strategy applied!')
+        self.name = 'entropy_sampling'
+
+        self.strategy_log_folder_file = self.log_output_folder_path / self.name
+        self.strategy_log_folder_file.mkdir(exist_ok=True)
+
+        print('AL Entropy sampling strategy applied!')
 
     def update_dataloader(self, new_dataloader):
         self.unlabelled_dataset_dataloader = new_dataloader
@@ -350,13 +390,31 @@ class EntropySampling(_Strategy):
         #max_probs = self.probs.max(dim=1)[0]
         log_probs = torch.log(self.probs)
         U = (self.probs * log_probs).sum(1)
-        return U.sort()[1][:n]
+
+        indices = U.sort()[1][:n]
+
+        self.query_i += 1
+        self.query_i_name = f'{self.query_i}.json'
+        json.dump(
+            U.sort()[0][:n].data.cpu().numpy().tolist(),
+            open(f'{str(self.strategy_log_folder_file / self.query_i_name)}', 'w'),
+            sort_keys=True,
+            indent=4
+        )
+
+        return indices
 
 
 class LeastConfidence(_Strategy):
-    def __init__(self, model, dataloader, dataset_len, device):
+    def __init__(self, model, dataloader, dataset_len, device, threshold = 1.0):
         super().__init__(model, dataloader, dataset_len, device)
 
+        self.name = 'least_confidence'
+        self.query_i = 0
+        self.threshold = threshold
+
+        self.strategy_log_folder_file = self.log_output_folder_path / self.name
+        self.strategy_log_folder_file.mkdir(exist_ok=True)
         print('AL Least confidence strategy applied!')
 
     def update_dataloader(self, new_dataloader):
@@ -373,7 +431,19 @@ class LeastConfidence(_Strategy):
         assert self.logits is not None and self.probs is not None, 'Cannot process until these variables are initialized'
 
         max_probs = self.probs.max(dim=1)[0]
+        max_probs = max_probs[max_probs < self.threshold]
+        n = min(len(max_probs), n)
+
         indices = max_probs.sort()[1][:n]
+
+        self.query_i += 1
+        self.query_i_name = f'{self.query_i}.json'
+        json.dump(
+            max_probs[indices].data.cpu().numpy().tolist(),
+            open(f'{str(self.strategy_log_folder_file / self.query_i_name)}', 'w'),
+            sort_keys=True,
+            indent=4
+        )
 
         return indices
 
@@ -383,6 +453,11 @@ class RandomStrategy(_Strategy):
 
     def __init__(self, model, dataloader, dataset_len, device):
         super().__init__(model, dataloader, dataset_len, device)
+
+        self.name = 'random'
+
+        self.strategy_log_folder_file = self.log_output_folder_path / self.name
+        self.strategy_log_folder_file.mkdir(exist_ok=True)
 
         print('AL Random strategy applied!')
 
@@ -403,231 +478,5 @@ class RandomStrategy(_Strategy):
             replace=False
         ).tolist()
 
-        return random_choice
-
-class Strategy:
-
-    def __init__(self, model, dataset_obj):
-        assert isinstance(dataset_obj, Dataset)
-        assert isinstance(model, Model)
-
-        self.model = model
-        self.dataset_obj = dataset_obj
-
-
-    def select_new_unlabelled_batch(self, num_examples_to_select = 20):
-        logits_all_tf = self.model.model.predict(
-            self.dataset_obj.al_train_dataset_tf['unlabelled'],
-            verbose=1
-        )['logits']
-
-        softmax_layer = tf.keras.layers.Softmax()
-
-        def _calculate_entropy(logits):
-            return entropy(softmax_layer(logits).numpy(), axis=1)
-
-        entropy_all = _calculate_entropy(logits_all_tf)
-        top_n_indices = np.argpartition(
-            entropy_all,
-            -num_examples_to_select
-        )[-num_examples_to_select:]
-
-
-        return top_n_indices
-
-    def prepare_al_datasets(self, al_init_dataset_size):
-        train_dataset_length = len(self.dataset['train'])
-
-        if 'index' not in self.dataset['train'].features.keys():
-            self.dataset['train'] = self.dataset['train'].add_column(
-                'index',
-                list(range(0, train_dataset_length))
-            )
-
-        selected_indices = choice(
-            range(0, train_dataset_length),
-            al_init_dataset_size,
-            replace=False
-        )
-
-        self.al_train_dataset_indices = selected_indices.tolist()
-
-        al_train_dataset = self.dataset['train'].filter(lambda example: example['index'] in selected_indices)
-        al_train_dataset = al_train_dataset.map(lambda ex, ind: {'dataset_index': ind}, with_indices=True)#['index_dataset']
-        rest_dataset = self.dataset['train'].filter(lambda example: example['index'] not in selected_indices)
-        rest_dataset = rest_dataset.map(lambda ex, ind: {'dataset_index': ind}, with_indices=True)#['index_dataset']
-
-        self.al_train_dataset = {
-            'train': al_train_dataset,
-            'unlabelled': rest_dataset
-        }
-
-        print(f'AL train dataset length: {len(al_train_dataset)}, rest dataset length: {len(rest_dataset)}')
-        assert len(al_train_dataset) + len(rest_dataset) == len(self.dataset['train'])
-
-
-
-    def run_strategy(
-            self,
-            num_runs = 5,
-            initial_al_train_dataset_size = 100,
-            val_dataset_batch_size = 16,
-            test_dataset_batch_size = 16,
-            al_dataset_train_tf_batch_size = 16,
-            num_examples_to_add_to_batch = 32
-    ):
-
-        # All model handling procedures: in Model class
-        # All strategy-related things - here
-        # ALL DATASETS OPERATIONS: here
-
-        # All visualisations: in utils
-
-        self.dataset_obj.prepare_al_datasets(initial_al_train_dataset_size)
-        self.dataset_obj.prepare_tf_datasets(test_dataset_batch_size, val_dataset_batch_size)
-
-        for al_iteration_i in range(num_runs):
-            self.model.reinit_model()
-            self.model.compile_model()
-
-            self.dataset_obj.prepare_al_datasets_tf(al_dataset_train_tf_batch_size)
-
-            print(f'Model training...')
-
-            self.model.model.fit(
-                self.dataset_obj.al_train_dataset_tf['train'],
-                steps_per_epoch=2,
-                validation_data=self.dataset_obj.tf_datasets['val'],
-                validation_steps=10,
-                epochs=1,
-                verbose=1
-            )
-
-            print(f'Strategy...')
-            selected_indices = self.select_new_unlabelled_batch(num_examples_to_add_to_batch)
-           # selected_indices = self.query_badge(num_examples_to_add_to_batch)
-
-            #selected_indices = self.query_random(num_examples_to_add_to_batch)
-            self.update_al_datasets_with_new_batch(selected_indices)
-            print(f'Datasets updated...')
-
-        # TODO:
-        # evaluate each run and see how the train and val accuracy develops over time in each experiment
-        # grid of 2 graphs: train and val datasets accuracy,
-
-        # TODO:
-        # 
-
-
-
-    def update_al_datasets_with_new_batch(self, indices_to_add):
-        data_to_add = self.dataset_obj.al_train_dataset['unlabelled'].select(indices_to_add)
-
-        self.dataset_obj.al_train_dataset['train'] = concatenate_datasets(
-            [
-                self.dataset_obj.al_train_dataset['train'],
-                data_to_add
-            ]
-        )
-        self.dataset_obj.al_train_dataset['unlabelled'] = self.dataset_obj.al_train_dataset['unlabelled'].filter(
-            lambda example, indice: indice not in indices_to_add,
-            with_indices=True
-        )
-
-        self.dataset_obj.al_train_dataset['unlabelled'] =  self.dataset_obj.al_train_dataset['unlabelled'].map(lambda ex, ind: {'dataset_index': ind}, with_indices=True)  # ['index_dataset']
-        self.dataset_obj.al_train_dataset['train'] = self.dataset_obj.al_train_dataset['train'].map(
-            lambda ex, ind: {'dataset_index': ind}, with_indices=True)  # ['index_dataset']
-
-        self.dataset_obj.al_train_dataset_indices.append(
-            data_to_add['index']
-        )
-
-    def get_grad_embedding(self, X, dataset_size):
-        model = self.model
-        embDim = self.model.config.hidden_size
-
-        num_labels = self.dataset_obj.get_num_categories()
-        embedding = np.zeros(
-            [
-                dataset_size,
-                embDim * num_labels
-            ]
-        )
-
-        softmax_layer = tf.keras.layers.Softmax()
-
-        for _batch in X:
-            out = self.model.model(_batch, output_hidden_states=True)#['logits']
-            # Pooling last hidden state output.
-            # TODO: take a look at last_hidden_state parameter of BERT model output.
-            out_np = np.mean(out[1][-1].numpy(), axis=1)
-            out = out[0]
-
-            idxs = _batch[0]['dataset_index'].numpy()
-
-            batchProbs = softmax_layer(out).numpy()
-            maxInds = np.argmax(batchProbs, 1)
-
-            # TODO: check batch size
-            for j in range(len(maxInds)):
-                for c in range(num_labels):
-                    if c == maxInds[j]:
-                        # TODO Add indices of entries of dataset into collator
-                        embedding[idxs[j]][embDim * c : embDim * (c+1)] = deepcopy(out_np[j] * (1 - batchProbs[j][c]))
-                    else:
-                        embedding[idxs[j]][embDim * c: embDim * (c + 1)] = deepcopy(out_np[j] * (-1 * batchProbs[j][c]))
-
-        return embedding
-
-    def init_centers(self, X, K):
-        ind = np.argmax([np.linalg.norm(s, 2) for s in X])
-        mu = [X[ind]]
-        indsAll = [ind]
-        centInds = [0.] * len(X)
-        cent = 0
-        print('#Samps\tTotal Distance')
-        while len(mu) < K:
-            if len(mu) == 1:
-                D2 = pairwise_distances(X, mu).ravel().astype(float)
-            else:
-                newD = pairwise_distances(X, [mu[-1]]).ravel().astype(float)
-                for i in range(len(X)):
-                    if D2[i] > newD[i]:
-                        centInds[i] = cent
-                        D2[i] = newD[i]
-            print(str(len(mu)) + '\t' + str(sum(D2)), flush=True)
-            if sum(D2) == 0.0: pdb.set_trace()
-            D2 = D2.ravel().astype(float)
-            Ddist = (D2 ** 2) / sum(D2 ** 2)
-            customDist = stats.rv_discrete(name='custm', values=(np.arange(len(D2)), Ddist))
-            ind = customDist.rvs(size=1)[0]
-            while ind in indsAll: ind = customDist.rvs(size=1)[0]
-            mu.append(X[ind])
-            indsAll.append(ind)
-            cent += 1
-        return indsAll
-
-    def query_badge(self, n):
-       # idxs_unlabeled = np.arange(self.n_pool)[~self.idxs_lb]
-        gradEmbedding = self.get_grad_embedding(
-            self.dataset_obj.al_train_dataset_tf['unlabelled'],
-            len(self.dataset_obj.al_train_dataset['unlabelled'])
-        )
-        chosen = self.init_centers(gradEmbedding, n),
-        return chosen[0]
-
-    # print(f'Train dataset: before: {len(al_train_dataset)}, after: {len(new_training_dataset)}')
-    # print(f'Rest dataset: before: {len(rest_dataset)}, after: {len(new_rest_dataset)}')
-
-
-
-    def query_random(self, n):
-
-        random_choice = np.random.choice(
-            range(0, len(self.dataset_obj.al_train_dataset['unlabelled'])),
-            n,
-            replace=False
-        ).tolist()
 
         return random_choice
-

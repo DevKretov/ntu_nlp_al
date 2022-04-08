@@ -19,6 +19,9 @@ from strategies import *
 
 class ALTrainer:
 
+    METRICS_TO_USE_AVEGARE_IN = ['f1', 'precision', 'recall']
+    DEFAULT_AVERAGE_MODE = 'weighted'
+
     def __init__(self):
 
         self.lr_scheduler = None
@@ -190,7 +193,7 @@ class ALTrainer:
         print(f'Evaluation is run on {len(self.val_dataloader)} batches!')
         print(f'Testing is run on {len(self.test_dataloader)} batches!')
 
-        print(f'\n=========================\n')
+        print(f'\n===========================================================\n')
 
         if isinstance(strategy, str):
 
@@ -207,6 +210,14 @@ class ALTrainer:
                     self.unlabelled_dataloader,
                     len(self.al_train_dataset['unlabelled']),
                     self.device
+                )
+            elif strategy.lower().strip() == 'least_confidence_thresh':
+                strategy = LeastConfidence(
+                    self.model,
+                    self.unlabelled_dataloader,
+                    len(self.al_train_dataset['unlabelled']),
+                    self.device,
+                    threshold=0.6
                 )
             elif strategy.lower().strip() == 'badge':
 
@@ -435,7 +446,10 @@ class ALTrainer:
         if print_metrics:
             print(f'\nMetrics')
             for metric in self.metrics:
-                result = metric.compute()
+                if metric.name in self.METRICS_TO_USE_AVEGARE_IN:
+                    result = metric.compute(average=self.DEFAULT_AVERAGE_MODE)
+                else:
+                    result = metric.compute()
                 print(f'{result}')
         print()
 

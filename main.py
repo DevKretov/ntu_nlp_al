@@ -6,18 +6,27 @@ from active_learning_trainer import ALTrainer
 from transformers import AutoTokenizer
 from dataset import Dataset
 from model import Model
+from transformers import BertForSequenceClassification
 from strategies import RandomStrategy
 
 if __name__ == '__main__':
 
     parameters = dict()
     parameters['pretrained_model_name'] = 'prajjwal1/bert-tiny' #'distilbert-base-uncased'
-    parameters['dataset_label_column_name'] = 'sentiment'
-    parameters['dataset_text_column_name'] = 'review'
 
-    parameters['train_dataset_file_path'] = 'data/imdb/train_IMDB.csv'
-    parameters['val_dataset_file_path'] = 'data/imdb/test_IMDB.csv'
-    parameters['test_dataset_file_path'] = 'data/imdb/test_IMDB.csv'
+
+    # parameters['train_dataset_file_path'] = 'data/imdb/train_IMDB.csv'
+    # parameters['val_dataset_file_path'] = 'data/imdb/test_IMDB.csv'
+    # parameters['test_dataset_file_path'] = 'data/imdb/test_IMDB.csv'
+
+    parameters['train_dataset_file_path'] = 'data/tweets/train.csv'
+    parameters['val_dataset_file_path'] = 'data/tweets/val.csv'
+    parameters['test_dataset_file_path'] = 'data/tweets/test.csv'
+    parameters['dataset_file_delimiter'] = ','
+
+    parameters['dataset_text_column_name'] = 'text'
+    parameters['dataset_label_column_name'] = 'airline_sentiment'
+
 
     parameters['train_batch_size'] = 32
     parameters['val_batch_size'] = 64
@@ -26,12 +35,11 @@ if __name__ == '__main__':
     parameters['finetuned_model_type'] = 'classification'
 
     parameters['al_iterations'] = 10
-    parameters['init_dataset_size'] = 1000
+    parameters['init_dataset_size'] = 2000
     parameters['add_dataset_size'] = 100
-    parameters['al_strategy'] = 'entropy' #'least_confidence'
+    parameters['al_strategy'] = 'badge' #'least_confidence'
     parameters['full_train'] = False
     parameters['debug'] = False
-
 
 
 
@@ -48,7 +56,7 @@ if __name__ == '__main__':
 
     dataset_obj.load_csv_dataset(
         data_files,
-        delimiter=','
+        delimiter=parameters['dataset_file_delimiter']
     )
 
     dataset_obj.truncate_dataset('train', 10000)

@@ -55,6 +55,7 @@ class Dataset:
             self.UNIFIED_LABELS_COLUMN_NAME
         )
         self.dataset = self.dataset.class_encode_column(self.UNIFIED_LABELS_COLUMN_NAME)
+        
 
     def encode_dataset(self, input_text_column_name, max_length=256, truncation=True):
 
@@ -67,7 +68,7 @@ class Dataset:
             batched=True
         )
 
-        self.dataset = self.dataset.remove_columns(["review", "label"])
+        self.dataset = self.dataset.remove_columns([input_text_column_name])
         #self.dataset = self.dataset.rename_column("label", "labels")
         # Check the correctness of this operation
         self.dataset.set_format(type='torch')
