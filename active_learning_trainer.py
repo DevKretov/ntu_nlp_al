@@ -2,7 +2,10 @@ import time
 import tqdm #import tqdm
 
 import torch
-from torch.utils.data import DataLoader
+import wandb
+from torch.utils.data import DataLoader, WeightedRandomSampler
+from sklearn.utils.class_weight import compute_class_weight
+
 from transformers import get_scheduler
 import numpy as np
 import pandas as pd
@@ -13,6 +16,10 @@ from datasets import concatenate_datasets
 import sys
 
 from strategies import *
+# TODO: Implement weigths & biases conf matrix creation
+#   https://wandb.ai/wandb/plots/reports/Confusion-Matrix--VmlldzozMDg1NTM
+
+from sklearn.metrics import confusion_matrix
 
 
 
@@ -22,7 +29,13 @@ class ALTrainer:
     METRICS_TO_USE_AVEGARE_IN = ['f1', 'precision', 'recall']
     DEFAULT_AVERAGE_MODE = 'weighted'
 
-    def __init__(self):
+    def __init__(self, wandb_on=False, imbalanced_training=False):
+
+        self.wandb_on = wandb_on
+        self.imbalanced_training = imbalanced_training
+        self.rng = np.random.RandomState(2022)
+
+        self.training_dict_keys = ['attention_mask', 'input_ids', 'labels', 'token_type_ids']
 
         self.lr_scheduler = None
         self.metrics = []
@@ -53,10 +66,28 @@ class ALTrainer:
             if 'index' in self.al_train_dataset['unlabelled'].features.keys():
                 self.al_train_dataset['unlabelled'] = self.al_train_dataset['unlabelled'].remove_columns(["index"])
             self.al_train_dataset['unlabelled'] = self.al_train_dataset['unlabelled'].remove_columns(["dataset_index"])
+
+            # imbalanced training resampling
+
+            sampler = None
+            shuffle = True
+
+            if self.imbalanced_training:
+                labels = self.dataset.dataset['train']['labels'].numpy()
+                labels_unique = np.unique(labels)
+                class_weights = compute_class_weight(class_weight = 'balanced', classes=labels_unique, y=labels)
+
+                labels_al = self.al_train_dataset['train']['labels'].tolist()
+                samples_weights = [class_weights[_label] for _label in labels_al]
+                num_samples = len(self.al_train_dataset['train']['labels'])
+                sampler = WeightedRandomSampler(samples_weights, num_samples)
+                shuffle = False
+
             self.train_dataloader = DataLoader(
                 self.al_train_dataset['train'],
                 shuffle=True,
-                batch_size=train_batch_size
+                batch_size=train_batch_size,
+                sampler=sampler
             )
 
             self.unlabelled_dataloader = DataLoader(
@@ -102,11 +133,11 @@ class ALTrainer:
         self.lr_scheduler = None
 
     def send_model_to_devide(self):
-        self.determine_device()
+        self.model.model.to(self.device)
        # self.model = self.model.to(self.device)
 
-    def determine_device(self):
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+    def set_device(self, device):
+        self.device = device
 
     def get_training_steps_num(self):
         return len(self.train_dataloader)
@@ -268,7 +299,8 @@ class ALTrainer:
             self.train_model(
                 epochs=train_epochs,
                 steps_per_epoch=steps_per_epoch,
-                evaluation_steps_num=evaluation_steps
+                evaluation_steps_num=evaluation_steps,
+                al_iteration=al_iteration
 
             )
 
@@ -280,6 +312,14 @@ class ALTrainer:
             indices = strategy.query(
                 add_dataset_size
             )
+
+            selected_dataset = self.al_train_dataset['unlabelled'].select(indices)
+         #   selected_dataset.save_to_disk(f'dataset_{al_iteration}.csv')
+
+            save_path = str(strategy.strategy_log_folder_file / f'add_dataset_{al_iteration}.csv')
+            pd.DataFrame.from_dict(
+                selected_dataset.to_dict(32)
+            )[['label_str', 'text_cleaned']].to_csv(save_path, index=False)
 
             print(f'Returned {len(indices)} indices from strategy')
 
@@ -315,11 +355,18 @@ class ALTrainer:
             epochs,
             steps_per_epoch = -1,
             evaluation_steps_num = -1,
+            al_iteration = 0
     ):
+
 
         self.model.reinit_model()
 
+
         model = self.model.model
+        self.send_model_to_devide()
+        if self.device != 'cpu':
+            torch.cuda.empty_cache()
+
         optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
         self.set_optimizer(optimizer)
         print(f'Model initialized.')
@@ -353,12 +400,15 @@ class ALTrainer:
             for next_batch in self.train_dataloader:
                 model.zero_grad()
 
+                next_batch = {your_key: next_batch[your_key] for your_key in self.training_dict_keys}
                 next_batch = {k: v.to(self.device) for k, v in next_batch.items()}
 
                 # TODO: Check model output
                 # TODO: Add accuracy and all other scores here
                 outputs = model(**next_batch)
                 loss = outputs.loss
+
+             #   wandb.log({'al_iteration': al_iteration, 'epoch': epoch_i, 'mean_loss': np.mean(losses_list)})
                 loss.backward()
 
                 losses_list.append(loss.item())
@@ -380,12 +430,15 @@ class ALTrainer:
             if evaluation_steps_num == -1:
                 evaluation_steps_num = len(self.val_dataloader)
 
-            self.evaluate(
-                num_batches_to_eval=evaluation_steps_num,
-                dataloader=self.val_dataloader,
-                print_metrics=False,
-                mode='Eval'
-            )
+        # TODO: decide if I want to evaluate every training epoch
+        self.evaluate(
+            num_batches_to_eval=evaluation_steps_num,
+            dataloader=self.val_dataloader,
+            print_metrics=False,
+            mode='Eval',
+            al_iteration=al_iteration,
+            epoch=epoch_i
+        )
 
         print(f'Test set evaluation:')
         self.evaluate(
@@ -396,9 +449,21 @@ class ALTrainer:
         )
 
 
-    def evaluate(self, num_batches_to_eval=-1, dataloader = None, print_metrics = False, mode = 'Eval'):
+    def evaluate(
+            self,
+            num_batches_to_eval=-1,
+            dataloader = None,
+            print_metrics = False,
+            mode = 'Eval',
+            al_iteration = 0,
+            epoch = 0
+    ):
 
         model = self.model.model
+
+        eval_result = dict()
+        #eval_result[al_iteration] = al_iteration
+
 
         if dataloader is None:
             dataloader = self.val_dataloader
@@ -422,15 +487,23 @@ class ALTrainer:
 
         batch_i = 0
 
+        labels_all = np.array([])
+        predictions_all = np.array([])
+
         for next_batch in dataloader:
+            next_batch = {your_key: next_batch[your_key] for your_key in self.training_dict_keys}
             next_batch = {k: v.to(self.device) for k, v in next_batch.items()}
             with torch.no_grad():
                 outputs = model(**next_batch)
             loss = outputs.loss
 
+            # TODO: follow this page and create tables for each evaluation run
+            #   https://docs.wandb.ai/examples
             logits = outputs.logits
             predictions = torch.argmax(logits, dim=-1)
 
+            labels_all = np.hstack((labels_all, next_batch["labels"].data.cpu().numpy()))
+            predictions_all = np.hstack((predictions_all, predictions))
 
             for metric in self.metrics:
                 metric.add_batch(predictions=predictions, references=next_batch["labels"])
@@ -443,14 +516,43 @@ class ALTrainer:
             if batch_i == num_batches_to_eval:
                 break
 
+
+
         if print_metrics:
-            print(f'\nMetrics')
+
+            return_labels = lambda _int: self.dataset.int_2_labels[_int]
+            return_labels = np.vectorize(return_labels)
+            labels_all_lst = return_labels(labels_all.astype(np.int32))
+            predictions_all_lst = return_labels(predictions_all.astype(np.int32))
+
+
+
+            print(f'\nMetrics, confusion matrix')
+
+            # Categories: {'alt': 0, 'comp': 1, 'misc': 2, 'rec': 3, 'sci': 4, 'soc': 5, 'talk': 6}
+            print(confusion_matrix(labels_all_lst, predictions_all_lst, labels=self.dataset.int_2_labels))
+
             for metric in self.metrics:
                 if metric.name in self.METRICS_TO_USE_AVEGARE_IN:
-                    result = metric.compute(average=self.DEFAULT_AVERAGE_MODE)
+                    if set(labels_all_lst) - set(predictions_all_lst):
+                        print(f'There is label not found in predictions: {set(labels_all_lst) - set(predictions_all_lst)}')
+                        print(f'Printing metric without this label')
+
+                        result = metric.compute(average=self.DEFAULT_AVERAGE_MODE, labels=np.unique(predictions_all))
+                    else:
+                        result = metric.compute(average=self.DEFAULT_AVERAGE_MODE)
                 else:
                     result = metric.compute()
                 print(f'{result}')
+                eval_result[metric.name] = result[metric.name]
+
+
+        if mode=='Test':
+            if self.wandb_on:
+                wandb.log(eval_result)
+            #return eval_result
+
+
         print()
 
     def prepare_al_datasets(
@@ -469,7 +571,7 @@ class ALTrainer:
                 list(range(0, train_dataset_length))
             )
 
-        selected_indices = np.random.choice(
+        selected_indices = self.rng.choice(
             range(0, train_dataset_length),
             al_init_dataset_size,
             replace=False
@@ -504,13 +606,23 @@ class ALTrainer:
                 data_to_add
             ]
         )
-        self.al_train_dataset['train'].set_format(type='torch')
+       # self.al_train_dataset['train'].set_format(type='torch')
+        self.al_train_dataset['train'].set_format(
+            type='torch',
+            columns=['attention_mask', 'input_ids', 'labels', 'token_type_ids'],
+            output_all_columns=True
+        )
         self.al_train_dataset['unlabelled'] = self.al_train_dataset['unlabelled'].filter(
             lambda example, indice: indice not in indices_to_add,
             with_indices=True
         )
 
         self.al_train_dataset['unlabelled'] =  self.al_train_dataset['unlabelled'].map(lambda ex, ind: {'dataset_index': ind}, with_indices=True)  # ['index_dataset']
+        self.al_train_dataset['unlabelled'].set_format(
+            type='torch',
+            columns=['attention_mask', 'input_ids', 'labels', 'token_type_ids'],
+            output_all_columns=True
+        )
         self.al_train_dataset['train'] = self.al_train_dataset['train'].map(
             lambda ex, ind: {'dataset_index': ind}, with_indices=True)  # ['index_dataset']
 

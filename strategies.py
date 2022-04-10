@@ -57,6 +57,7 @@ class _Strategy:
 
         self.log_output_folder_path.mkdir(exist_ok=True)
 
+        self.training_dict_keys = ['attention_mask', 'input_ids', 'labels', 'token_type_ids']
 
     def create_logits(self):
         model = self.model.model
@@ -78,6 +79,7 @@ class _Strategy:
         batch_i = 0
         all_labels = None
         for next_batch in self.unlabelled_dataset_dataloader:
+            next_batch = {your_key: next_batch[your_key] for your_key in self.training_dict_keys}
             next_batch = {k: v.to(self.device) for k, v in next_batch.items()}
             if all_labels is None:
                 all_labels = next_batch['labels']
@@ -229,6 +231,7 @@ class BadgeSampling(_Strategy):
 
 
         for next_batch in self.unlabelled_dataset_dataloader:
+            next_batch = {your_key: next_batch[your_key] for your_key in self.training_dict_keys}
             next_batch = {k: v.to(self.device) for k, v in next_batch.items()}
 
             y = next_batch['labels']
@@ -334,6 +337,7 @@ class KMeansSampling(_Strategy):
         )
 
         for next_batch in self.unlabelled_dataset_dataloader:
+            next_batch = {your_key: next_batch[your_key] for your_key in self.training_dict_keys}
             next_batch = {k: v.to(self.device) for k, v in next_batch.items()}
 
             y = next_batch['labels']
@@ -351,7 +355,8 @@ class KMeansSampling(_Strategy):
             loss = outputs.loss
             logits = outputs.logits
 
-            out_np = np.mean(outputs[2][-1].data.cpu().numpy(), axis=1)
+            #out_np = np.mean(outputs[2][-1].data.cpu().numpy(), axis=1)
+            out_np = hidden_states_pooled = outputs.hidden_states[-1][:, 0].data.cpu().numpy()
 
             embedding[idxs] = out_np
 

@@ -9,9 +9,22 @@ from model import Model
 from transformers import BertForSequenceClassification
 from strategies import RandomStrategy
 
+from torch.nn import CrossEntropyLoss
+
+import wandb
+
+
 if __name__ == '__main__':
 
     parameters = dict()
+    parameters['use_gpu'] = True
+
+    parameters['weights_and_biases_on'] = True
+    parameters['weights_and_biases_key'] = '5e5e00356042a33b5cb271399b8d05c9c9d6ded8'
+    parameters['weights_and_biases_run_name'] = 'run_2'
+    # TODO: implement it
+    parameters['weights_and_biases_save_predictions'] = False
+
     parameters['pretrained_model_name'] = 'prajjwal1/bert-tiny' #'distilbert-base-uncased'
 
 
@@ -19,30 +32,47 @@ if __name__ == '__main__':
     # parameters['val_dataset_file_path'] = 'data/imdb/test_IMDB.csv'
     # parameters['test_dataset_file_path'] = 'data/imdb/test_IMDB.csv'
 
-    parameters['train_dataset_file_path'] = 'data/tweets/train.csv'
-    parameters['val_dataset_file_path'] = 'data/tweets/val.csv'
-    parameters['test_dataset_file_path'] = 'data/tweets/test.csv'
+    parameters['train_dataset_file_path'] = 'data/news/train.csv'
+    parameters['val_dataset_file_path'] = 'data/news/val.csv'
+    parameters['test_dataset_file_path'] = 'data/news/test.csv'
     parameters['dataset_file_delimiter'] = ','
 
-    parameters['dataset_text_column_name'] = 'text'
-    parameters['dataset_label_column_name'] = 'airline_sentiment'
+    parameters['dataset_text_column_name'] = 'text_cleaned' #'text'
+    parameters['dataset_label_column_name'] = 'label_reduced'#'airline_sentiment'
 
+    # TODO: implement this with CrossEntropyLoss
+    parameters['loss'] = 'cross_entropy'
+    parameters['loss_weighted'] = False
 
+    parameters['class_imbalance_reweight'] = True
     parameters['train_batch_size'] = 32
     parameters['val_batch_size'] = 64
     parameters['test_batch_size'] = 64
     parameters['epochs'] = 5
     parameters['finetuned_model_type'] = 'classification'
 
-    parameters['al_iterations'] = 10
-    parameters['init_dataset_size'] = 2000
-    parameters['add_dataset_size'] = 100
-    parameters['al_strategy'] = 'badge' #'least_confidence'
+    parameters['al_iterations'] = 100
+    parameters['init_dataset_size'] = 32
+    parameters['add_dataset_size'] = 32
+    parameters['al_strategy'] = 'least_confidence' #'least_confidence'
     parameters['full_train'] = False
     parameters['debug'] = False
 
+    if parameters['weights_and_biases_on']:
+        wandb.login(key='5e5e00356042a33b5cb271399b8d05c9c9d6ded8')
+        wandb.init(
+            name=parameters['weights_and_biases_run_name'],
+            project='ntu_al',
+            reinit=True
+        )
 
+        wandb.config.update(parameters)
 
+    device = 'cpu'
+    if parameters['use_gpu']:
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
+    print(f'Device set to {device}!')
 
     tokenizer = AutoTokenizer.from_pretrained(parameters['pretrained_model_name'])
 
@@ -60,7 +90,7 @@ if __name__ == '__main__':
     )
 
     dataset_obj.truncate_dataset('train', 10000)
-    dataset_obj.truncate_dataset('val', 10000)
+    dataset_obj.truncate_dataset('val', 1000)
     dataset_obj.truncate_dataset('test', 10000)
 
     dataset_obj.prepare_labels(parameters['dataset_label_column_name'])
@@ -75,7 +105,10 @@ if __name__ == '__main__':
         num_labels=num_labels
     )
 
-    trainer = ALTrainer()
+    trainer = ALTrainer(
+        wandb_on=parameters['weights_and_biases_on'],
+        imbalanced_training=parameters['class_imbalance_reweight']
+    )
     trainer.set_model(model)
 
     # TODO: add strategy
@@ -99,7 +132,7 @@ if __name__ == '__main__':
         num_training_steps=num_training_steps
     )
     trainer.set_lr_scheduler(lr_scheduler)
-    trainer.determine_device()
+    trainer.set_device(device)
 
 
     trainer.add_evaluation_metric(load_metric('accuracy'))
