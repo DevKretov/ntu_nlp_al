@@ -61,7 +61,7 @@ class _Strategy:
 
     def create_logits(self):
         model = self.model.model
-        model.to(self.device)
+        print(f'Is model on CUDA - {model.is_cuda()}')
         model.eval()
 
         num_batches = len(self.unlabelled_dataset_dataloader)
@@ -213,7 +213,9 @@ class BadgeSampling(_Strategy):
         )
 
         model = self.model.model
-        model.to(self.device)
+        #model = model.to(self.device)
+        print(f'Is model on CUDA - {model.is_cuda()}')
+
         model.eval()
 
         logits_all = None

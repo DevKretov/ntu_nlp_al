@@ -133,7 +133,8 @@ class ALTrainer:
         self.lr_scheduler = None
 
     def send_model_to_devide(self):
-        self.model.model.to(self.device)
+        self.model.model = self.model.model.to(self.device)
+        print(f'START: Is model on CUDA - {self.model.model.is_cuda()}')
        # self.model = self.model.to(self.device)
 
     def set_device(self, device):
@@ -360,10 +361,9 @@ class ALTrainer:
 
 
         self.model.reinit_model()
-
-
-        model = self.model.model
         self.send_model_to_devide()
+        model = self.model.model
+
         if self.device != 'cpu':
             torch.cuda.empty_cache()
 
@@ -373,7 +373,6 @@ class ALTrainer:
 
         if self.device == 'cuda':
             torch.cuda.empty_cache()
-        model.to(self.device)
 
         if steps_per_epoch == -1:
             steps_per_epoch = len(self.train_dataloader)
@@ -460,6 +459,7 @@ class ALTrainer:
     ):
 
         model = self.model.model
+        print(f'Is model on CUDA - {model.is_cuda()}')
 
         eval_result = dict()
         #eval_result[al_iteration] = al_iteration
