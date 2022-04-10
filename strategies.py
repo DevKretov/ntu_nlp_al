@@ -61,6 +61,7 @@ class _Strategy:
 
     def create_logits(self):
         model = self.model.model
+        model.to(self.device)
         model.eval()
 
         num_batches = len(self.unlabelled_dataset_dataloader)
@@ -212,6 +213,7 @@ class BadgeSampling(_Strategy):
         )
 
         model = self.model.model
+        model.to(self.device)
         model.eval()
 
         logits_all = None
