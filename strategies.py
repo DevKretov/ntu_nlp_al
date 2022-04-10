@@ -61,7 +61,7 @@ class _Strategy:
 
     def create_logits(self):
         model = self.model.model
-        print(f'Is model on CUDA - {model.is_cuda()}')
+        print(f'Is model on CUDA - {model.device}')
         model.eval()
 
         num_batches = len(self.unlabelled_dataset_dataloader)

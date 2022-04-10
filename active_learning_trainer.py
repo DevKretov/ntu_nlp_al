@@ -134,7 +134,7 @@ class ALTrainer:
 
     def send_model_to_devide(self):
         self.model.model = self.model.model.to(self.device)
-        print(f'START: Is model on CUDA - {self.model.model.is_cuda()}')
+        print(f'START: Is model on CUDA - {self.model.model.device}')
        # self.model = self.model.to(self.device)
 
     def set_device(self, device):
@@ -459,7 +459,7 @@ class ALTrainer:
     ):
 
         model = self.model.model
-        print(f'Is model on CUDA - {model.is_cuda()}')
+        print(f'Is model on CUDA - {model.device}')
 
         eval_result = dict()
         #eval_result[al_iteration] = al_iteration
