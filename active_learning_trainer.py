@@ -371,9 +371,6 @@ class ALTrainer:
         self.set_optimizer(optimizer)
         print(f'Model initialized.')
 
-        if self.device == 'cuda':
-            torch.cuda.empty_cache()
-
         if steps_per_epoch == -1:
             steps_per_epoch = len(self.train_dataloader)
 
@@ -503,7 +500,7 @@ class ALTrainer:
             predictions = torch.argmax(logits, dim=-1)
 
             labels_all = np.hstack((labels_all, next_batch["labels"].data.cpu().numpy()))
-            predictions_all = np.hstack((predictions_all, predictions))
+            predictions_all = np.hstack((predictions_all, predictions.data.cpu().numpy()))
 
             for metric in self.metrics:
                 metric.add_batch(predictions=predictions, references=next_batch["labels"])

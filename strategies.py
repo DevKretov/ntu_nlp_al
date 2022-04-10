@@ -92,9 +92,9 @@ class _Strategy:
 
             logits = outputs.logits
             if logits_all is None:
-                logits_all = logits.cpu().data
+                logits_all = logits.data.cpu()
             else:
-                logits_all = torch.cat((logits_all, logits.cpu().data))
+                logits_all = torch.cat((logits_all, logits.data.cpu()))
 
             #predictions = torch.argmax(logits, dim=-1)
             batch_i += 1
