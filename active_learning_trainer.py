@@ -85,7 +85,7 @@ class ALTrainer:
 
             self.train_dataloader = DataLoader(
                 self.al_train_dataset['train'],
-                shuffle=True,
+                shuffle=shuffle,
                 batch_size=train_batch_size,
                 sampler=sampler
             )
