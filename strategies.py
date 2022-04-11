@@ -46,7 +46,7 @@ class _Strategy:
             unlabelled_dataset_dataloader,
             unlabelled_dataset_length,
             device,
-            num_labels = 0
+            model_type = 'classification'
 
     ):
 
@@ -55,6 +55,7 @@ class _Strategy:
         self.unlabelled_dataset_length = unlabelled_dataset_length
         self.device = device
 
+        self.model_type = model_type
         self.log_output_folder = 'al_strategies_log'
         self.log_output_folder_path = Path(self.log_output_folder)
 
@@ -83,6 +84,10 @@ class _Strategy:
         batch_i = 0
         all_labels = None
         for next_batch in self.unlabelled_dataset_dataloader:
+
+            if self.model_type == 'tagging':
+                next_batch, next_batch_metadata = next_batch
+
             next_batch = {your_key: next_batch[your_key] for your_key in self.training_dict_keys}
             next_batch = {k: v.to(self.device) for k, v in next_batch.items()}
             if all_labels is None:
@@ -134,8 +139,8 @@ class _Strategy:
 
 
 class BadgeSampling(_Strategy):
-    def __init__(self, model, dataloader, dataset_len, device, num_labels, embedding_dim, batch_size):
-        super().__init__(model, dataloader, dataset_len, device)
+    def __init__(self, model, dataloader, dataset_len, device, num_labels, embedding_dim, batch_size, model_type):
+        super().__init__(model, dataloader, dataset_len, device, model_type)
 
 
         self.num_labels = num_labels
@@ -238,6 +243,10 @@ class BadgeSampling(_Strategy):
 
 
         for next_batch in self.unlabelled_dataset_dataloader:
+
+            if self.model_type == 'tagging':
+                next_batch, next_batch_metadata = next_batch
+
             next_batch = {your_key: next_batch[your_key] for your_key in self.training_dict_keys}
             next_batch = {k: v.to(self.device) for k, v in next_batch.items()}
 
@@ -286,8 +295,8 @@ class BadgeSampling(_Strategy):
 
 class KMeansSampling(_Strategy):
 
-    def __init__(self, model, dataloader, dataset_len, device, num_labels, embedding_dim, batch_size):
-        super().__init__(model, dataloader, dataset_len, device)
+    def __init__(self, model, dataloader, dataset_len, device, num_labels, embedding_dim, batch_size, model_type):
+        super().__init__(model, dataloader, dataset_len, device, model_type)
 
         self.num_labels = num_labels
         self.embedding_dim = embedding_dim
@@ -344,6 +353,9 @@ class KMeansSampling(_Strategy):
         )
 
         for next_batch in self.unlabelled_dataset_dataloader:
+            if self.model_type == 'tagging':
+                next_batch, next_batch_metadata = next_batch
+
             next_batch = {your_key: next_batch[your_key] for your_key in self.training_dict_keys}
             next_batch = {k: v.to(self.device) for k, v in next_batch.items()}
 
@@ -376,8 +388,8 @@ class KMeansSampling(_Strategy):
     pass
 
 class EntropySampling(_Strategy):
-    def __init__(self, model, dataloader, dataset_len, device):
-        super().__init__(model, dataloader, dataset_len, device)
+    def __init__(self, model, dataloader, dataset_len, device, model_type):
+        super().__init__(model, dataloader, dataset_len, device, model_type)
 
         self.name = 'entropy_sampling'
 
@@ -418,8 +430,8 @@ class EntropySampling(_Strategy):
 
 
 class LeastConfidence(_Strategy):
-    def __init__(self, model, dataloader, dataset_len, device, threshold = 1.0):
-        super().__init__(model, dataloader, dataset_len, device)
+    def __init__(self, model, dataloader, dataset_len, device, model_type, threshold = 1.0):
+        super().__init__(model, dataloader, dataset_len, device, model_type)
 
         self.name = 'least_confidence'
         self.query_i = 0
@@ -463,8 +475,8 @@ class LeastConfidence(_Strategy):
 
 class RandomStrategy(_Strategy):
 
-    def __init__(self, model, dataloader, dataset_len, device):
-        super().__init__(model, dataloader, dataset_len, device)
+    def __init__(self, model, dataloader, dataset_len, device, model_type):
+        super().__init__(model, dataloader, dataset_len, device, model_type)
 
         self.name = 'random'
 
