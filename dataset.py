@@ -144,11 +144,11 @@ class Dataset:
             ]
         )
        # self.al_train_dataset['train'].set_format(type='torch')
-       #  self.al_train_dataset['train'].set_format(
-       #      type='torch',
-       #      columns=['attention_mask', 'input_ids', 'labels', 'token_type_ids'],
-       #      output_all_columns=True
-       #  )
+        self.al_train_dataset['train'].set_format(
+            type='torch',
+            columns=['attention_mask', 'input_ids', 'labels', 'token_type_ids'],
+            output_all_columns=True
+        )
         logging.debug(f'Filtering...')
         self.al_train_dataset['unlabelled'] = self.al_train_dataset['unlabelled'].filter(
             lambda example, indice: indice not in indices_to_add,
@@ -158,11 +158,11 @@ class Dataset:
         logging.debug(f'Adding dataset_index column...')
         self.al_train_dataset['unlabelled'] =  self.al_train_dataset['unlabelled'].map(lambda ex, ind: {'dataset_index': ind}, with_indices=True)  # ['index_dataset']
         logging.debug(f'Setting format...')
-        # self.al_train_dataset['unlabelled'].set_format(
-        #     type='torch',
-        #     columns=['attention_mask', 'input_ids', 'labels', 'token_type_ids'],
-        #     output_all_columns=True
-        # )
+        self.al_train_dataset['unlabelled'].set_format(
+            type='torch',
+            columns=['attention_mask', 'input_ids', 'labels', 'token_type_ids'],
+            output_all_columns=True
+        )
 
         logging.debug(f'Smth else...')
         self.al_train_dataset['train'] = self.al_train_dataset['train'].map(
@@ -235,7 +235,7 @@ class Dataset:
                 labels_unique = np.unique(labels)
                 class_weights = compute_class_weight(class_weight = 'balanced', classes=labels_unique, y=labels)
 
-                labels_al = self.al_train_dataset['train']['labels'].tolist()
+                labels_al = self.al_train_dataset['train']['labels']#.tolist()
                 samples_weights = [class_weights[_label] for _label in labels_al]
                 num_samples = len(self.al_train_dataset['train']['labels'])
                 sampler = WeightedRandomSampler(samples_weights, num_samples)

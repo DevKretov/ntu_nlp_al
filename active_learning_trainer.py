@@ -608,16 +608,23 @@ class ALTrainer:
                         result = metric.compute(average=self.DEFAULT_AVERAGE_MODE)
                 else:
                     result = metric.compute()
-                logging.info(f'{result}')
-                if metric.name=='seqeval':
-                    for key in result.keys():
-                        if key.startswith('overall'):
 
-                            eval_result[metric.name + '_' + key] = result[key]
+                if metric.name =='seqeval':
+                    for key in result.keys():
+                        final_key = metric.name + '_' + key
+                        if isinstance(result[key], dict):
+                            for _key, value in result[key].items():
+                                final_key = metric.name + '_' + key + '_' + _key
+                                eval_result[final_key] = value
+                        else:
+                            eval_result[final_key] = result[key]
+
+                        # if key.startswith('overall'):
+                        #     eval_result[metric.name + '_' + key] = result[key]
                 else:
                     eval_result[metric.name] = result[metric.name]
 
-
+                logging.info(f'{eval_result}')
 
         if mode=='Test':
             eval_result['test_loss'] = np.mean(eval_loss)
