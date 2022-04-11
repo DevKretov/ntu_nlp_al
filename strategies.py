@@ -1,5 +1,8 @@
 from transformers import DataCollatorWithPadding
 
+import logging
+logging.basicConfig(format='%(asctime)s %(name)s %(levelname)s:%(message)s', level=logging.DEBUG)
+
 import tensorflow as tf
 import numpy as np
 from scipy.stats import entropy
@@ -61,12 +64,12 @@ class _Strategy:
 
     def create_logits(self):
         model = self.model.model
-        print(f'Is model on CUDA - {model.device}')
+        logging.debug(f'Is model on CUDA - {model.device}')
         model.eval()
 
         num_batches = len(self.unlabelled_dataset_dataloader)
         logits_all = None
-        print('AL evaluation iteration')
+        logging.debug('AL evaluation iteration')
         pbar = tqdm.trange(
             num_batches,
             desc="AL evaluation iteration",
@@ -144,7 +147,7 @@ class BadgeSampling(_Strategy):
         self.strategy_log_folder_file = self.log_output_folder_path / self.name
         self.strategy_log_folder_file.mkdir(exist_ok=True)
 
-        print('AL BADGE strategy applied!')
+        logging.info('AL BADGE strategy applied!')
 
     def update_dataloader(self, new_dataloader):
         self.unlabelled_dataset_dataloader = new_dataloader
@@ -214,12 +217,12 @@ class BadgeSampling(_Strategy):
 
         model = self.model.model
         #model = model.to(self.device)
-        print(f'Is model on CUDA - {model.is_cuda()}')
+        logging.debug(f'Is model on CUDA - {model.is_cuda()}')
 
         model.eval()
 
         logits_all = None
-        print('AL evaluation iteration')
+        logging.debug('AL evaluation iteration')
         pbar = tqdm.trange(
             num_batches,
             desc="AL evaluation iteration",
@@ -295,7 +298,7 @@ class KMeansSampling(_Strategy):
 
         self.strategy_log_folder_file = self.log_output_folder_path / self.name
         self.strategy_log_folder_file.mkdir(exist_ok=True)
-        print('AL K Means strategy applied!')
+        logging.info('AL K Means strategy applied!')
 
     def update_dataloader(self, new_dataloader):
         self.unlabelled_dataset_dataloader = new_dataloader
@@ -329,7 +332,7 @@ class KMeansSampling(_Strategy):
         model.eval()
 
         num_batches = len(self.unlabelled_dataset_dataloader)
-        print('AL evaluation iteration')
+        logging.debug('AL evaluation iteration')
         pbar = tqdm.trange(
             num_batches,
             desc="AL evaluation iteration",
@@ -381,7 +384,7 @@ class EntropySampling(_Strategy):
         self.strategy_log_folder_file = self.log_output_folder_path / self.name
         self.strategy_log_folder_file.mkdir(exist_ok=True)
 
-        print('AL Entropy sampling strategy applied!')
+        logging.info('AL Entropy sampling strategy applied!')
 
     def update_dataloader(self, new_dataloader):
         self.unlabelled_dataset_dataloader = new_dataloader
@@ -391,7 +394,7 @@ class EntropySampling(_Strategy):
 
     def query(self, n):
 
-        print(f'Selecting {n} indices from {self.unlabelled_dataset_length} ')
+        logging.info(f'Selecting {n} indices from {self.unlabelled_dataset_length} ')
         self.create_logits()
 
         assert self.logits is not None and self.probs is not None, 'Cannot process until these variables are initialized'
@@ -424,7 +427,7 @@ class LeastConfidence(_Strategy):
 
         self.strategy_log_folder_file = self.log_output_folder_path / self.name
         self.strategy_log_folder_file.mkdir(exist_ok=True)
-        print('AL Least confidence strategy applied!')
+        logging.info('AL Least confidence strategy applied!')
 
     def update_dataloader(self, new_dataloader):
         self.unlabelled_dataset_dataloader = new_dataloader
@@ -434,7 +437,7 @@ class LeastConfidence(_Strategy):
 
     def query(self, n):
 
-        print(f'Selecting {n} indices from {self.unlabelled_dataset_length} ')
+        logging.info(f'Selecting {n} indices from {self.unlabelled_dataset_length} ')
         self.create_logits()
 
         assert self.logits is not None and self.probs is not None, 'Cannot process until these variables are initialized'
@@ -468,7 +471,7 @@ class RandomStrategy(_Strategy):
         self.strategy_log_folder_file = self.log_output_folder_path / self.name
         self.strategy_log_folder_file.mkdir(exist_ok=True)
 
-        print('AL Random strategy applied!')
+        logging.info('AL Random strategy applied!')
 
     def update_dataloader(self, new_dataloader):
         self.unlabelled_dataset_dataloader = new_dataloader
@@ -479,7 +482,7 @@ class RandomStrategy(_Strategy):
     def query(self, n):
 
         #self.create_logits()
-        print(f'Selecting {n} indices from {self.unlabelled_dataset_length} ')
+        logging.info(f'Selecting {n} indices from {self.unlabelled_dataset_length} ')
         ## TODO: max range by logits
         random_choice = np.random.choice(
             self.unlabelled_dataset_length,

@@ -1,5 +1,7 @@
 import time
 import tqdm #import tqdm
+import logging
+logging.basicConfig(format='%(asctime)s %(name)s %(levelname)s:%(message)s', level=logging.DEBUG)
 
 import torch
 import wandb
@@ -134,7 +136,7 @@ class ALTrainer:
 
     def send_model_to_devide(self):
         self.model.model = self.model.model.to(self.device)
-        print(f'START: Is model on CUDA - {self.model.model.device}')
+        logging.debug(f'START: Is model on CUDA - {self.model.model.device}')
        # self.model = self.model.to(self.device)
 
     def set_device(self, device):
@@ -156,7 +158,7 @@ class ALTrainer:
             debug = False
     ):
 
-        print(f'Full training initialized!')
+        logging.info(f'Full training initialized!')
 
         self.train_batch_size = train_batch_size
 
@@ -167,11 +169,11 @@ class ALTrainer:
             al=False
         )
 
-        print(f'Training is run on {len(self.train_dataloader)} batches!')
-        print(f'Evaluation is run on {len(self.val_dataloader)} batches!')
-        print(f'Testing is run on {len(self.test_dataloader)} batches!')
+        logging.info(f'Training is run on {len(self.train_dataloader)} batches!')
+        logging.info(f'Evaluation is run on {len(self.val_dataloader)} batches!')
+        logging.info(f'Testing is run on {len(self.test_dataloader)} batches!')
 
-        print(f'\n=========================\n')
+        logging.info(f'\n=========================\n')
 
         steps_per_epoch = -1
         evaluation_steps = -1
@@ -186,7 +188,7 @@ class ALTrainer:
 
         )
 
-        print(f'\nFull training finished')
+        logging.info(f'\nFull training finished')
 
 
     # TODO: if init_dataset_size is integer, take init_dataset_size samples to initial al dataset
@@ -209,7 +211,7 @@ class ALTrainer:
             debug = False
     ):
 
-        print(f'Training initialized!')
+        logging.info(f'Training initialized!')
 
         self.train_batch_size = train_batch_size
 
@@ -221,11 +223,11 @@ class ALTrainer:
             al=True
         )
 
-        print(f'Training is run on {len(self.train_dataloader)} batches!')
-        print(f'Evaluation is run on {len(self.val_dataloader)} batches!')
-        print(f'Testing is run on {len(self.test_dataloader)} batches!')
+        logging.info(f'Training is run on {len(self.train_dataloader)} batches!')
+        logging.info(f'Evaluation is run on {len(self.val_dataloader)} batches!')
+        logging.info(f'Testing is run on {len(self.test_dataloader)} batches!')
 
-        print(f'\n===========================================================\n')
+        logging.info(f'\n===========================================================\n')
 
         if isinstance(strategy, str):
 
@@ -287,8 +289,8 @@ class ALTrainer:
 
 
         for al_iteration in range(al_iterations):
-            print(f'\n===========================================================')
-            print(f'\nAL iteration {(al_iteration + 1):3}/{al_iterations}')
+            logging.info(f'\n===========================================================')
+            logging.info(f'\nAL iteration {(al_iteration + 1):3}/{al_iterations}')
 
 
             steps_per_epoch = -1
@@ -305,7 +307,7 @@ class ALTrainer:
 
             )
 
-            print(f'Model trained! Running AL strategy...')
+            logging.debug(f'Model trained! Running AL strategy...')
 
             strategy.update_dataloader(self.unlabelled_dataloader)
             strategy.update_dataset_len(len(self.al_train_dataset['unlabelled']))
@@ -322,12 +324,12 @@ class ALTrainer:
                 selected_dataset.to_dict(32)
             )[['label_str', 'text_cleaned']].to_csv(save_path, index=False)
 
-            print(f'Returned {len(indices)} indices from strategy')
+            logging.debug(f'Returned {len(indices)} indices from strategy')
 
             al_train_dataset_size_before = len(self.al_train_dataset['train'])
             al_unlabelled_dataset_size_before = len(self.al_train_dataset['unlabelled'])
 
-            print(f'Before updating AL datasets: train size = {al_train_dataset_size_before}, unlabelled size = {al_unlabelled_dataset_size_before}, sum: {al_train_dataset_size_before + al_unlabelled_dataset_size_before} ')
+            logging.debug(f'Before updating AL datasets: train size = {al_train_dataset_size_before}, unlabelled size = {al_unlabelled_dataset_size_before}, sum: {al_train_dataset_size_before + al_unlabelled_dataset_size_before} ')
 
             self.update_al_datasets_with_new_batch(
                 indices_to_add=indices
@@ -336,7 +338,7 @@ class ALTrainer:
             al_train_dataset_size_after = len(self.al_train_dataset['train'])
             al_unlabelled_dataset_size_after = len(self.al_train_dataset['unlabelled'])
 
-            print(f'\nUpdated AL datasets: train size = {al_train_dataset_size_after}, unlabelled size = {al_unlabelled_dataset_size_after}, sum: {al_train_dataset_size_after + al_unlabelled_dataset_size_after} ')
+            logging.debug(f'\nUpdated AL datasets: train size = {al_train_dataset_size_after}, unlabelled size = {al_unlabelled_dataset_size_after}, sum: {al_train_dataset_size_after + al_unlabelled_dataset_size_after} ')
 
             assert (
                 (al_train_dataset_size_before + al_unlabelled_dataset_size_before)
@@ -369,14 +371,14 @@ class ALTrainer:
 
         optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
         self.set_optimizer(optimizer)
-        print(f'Model initialized.')
+        logging.info(f'Model initialized.')
 
         if steps_per_epoch == -1:
             steps_per_epoch = len(self.train_dataloader)
 
         for epoch_i in range(epochs):
             model.train()
-            print(f'\n\nEpoch {(epoch_i + 1):3}')
+            logging.info(f'\n\nEpoch {(epoch_i + 1):3}')
 
             losses_list =  []
             start_time = time.time()
@@ -421,7 +423,7 @@ class ALTrainer:
                 step_i += 1
                 if step_i == steps_per_epoch:
                     break
-            print(f'\n\nEpoch finished. Evaluation:')
+            logging.info(f'Epoch finished. Evaluation:')
 
             if evaluation_steps_num == -1:
                 evaluation_steps_num = len(self.val_dataloader)
@@ -436,7 +438,7 @@ class ALTrainer:
             epoch=epoch_i
         )
 
-        print(f'Test set evaluation:')
+        logging.info(f'Test set evaluation:')
         self.evaluate(
             num_batches_to_eval=-1,
             dataloader=self.test_dataloader,
@@ -456,7 +458,7 @@ class ALTrainer:
     ):
 
         model = self.model.model
-        print(f'Is model on CUDA - {model.device}')
+        logging.debug(f'Is model on CUDA - {model.device}')
 
         eval_result = dict()
         #eval_result[al_iteration] = al_iteration
@@ -465,7 +467,7 @@ class ALTrainer:
         if dataloader is None:
             dataloader = self.val_dataloader
 
-        print(f'Running {mode} mode...')
+        logging.info(f'Running {mode} mode...')
         if num_batches_to_eval == -1:
             num_batches_to_eval = len(dataloader)
 
@@ -519,28 +521,38 @@ class ALTrainer:
 
             return_labels = lambda _int: self.dataset.int_2_labels[_int]
             return_labels = np.vectorize(return_labels)
-            labels_all_lst = return_labels(labels_all.astype(np.int32))
-            predictions_all_lst = return_labels(predictions_all.astype(np.int32))
+            labels_all = labels_all.astype(np.int32)
+            predictions_all = predictions_all.astype(np.int32)
+
+            labels_all_lst = return_labels(labels_all)
+            predictions_all_lst = return_labels(predictions_all)
 
 
 
-            print(f'\nMetrics, confusion matrix')
+            logging.info(f'\nMetrics, confusion matrix')
 
             # Categories: {'alt': 0, 'comp': 1, 'misc': 2, 'rec': 3, 'sci': 4, 'soc': 5, 'talk': 6}
-            print(confusion_matrix(labels_all_lst, predictions_all_lst, labels=self.dataset.int_2_labels))
+            eval_result['conf_mat'] = wandb.plot.confusion_matrix(
+                probs=None,
+                y_true=labels_all,
+                preds=predictions_all,
+                class_names=self.dataset.int_2_labels
+            )
+
+            logging.info(confusion_matrix(labels_all_lst, predictions_all_lst, labels=self.dataset.int_2_labels))
 
             for metric in self.metrics:
                 if metric.name in self.METRICS_TO_USE_AVEGARE_IN:
                     if set(labels_all_lst) - set(predictions_all_lst):
-                        print(f'There is label not found in predictions: {set(labels_all_lst) - set(predictions_all_lst)}')
-                        print(f'Printing metric without this label')
+                        logging.warning(f'There is label not found in predictions: {set(labels_all_lst) - set(predictions_all_lst)}')
+                        logging.warning(f'Printing metric without this label')
 
                         result = metric.compute(average=self.DEFAULT_AVERAGE_MODE, labels=np.unique(predictions_all))
                     else:
                         result = metric.compute(average=self.DEFAULT_AVERAGE_MODE)
                 else:
                     result = metric.compute()
-                print(f'{result}')
+                logging.info(f'{result}')
                 eval_result[metric.name] = result[metric.name]
 
 
@@ -586,7 +598,7 @@ class ALTrainer:
             'unlabelled': rest_dataset
         }
 
-        print(f'AL train dataset length: {len(al_train_dataset)}, rest dataset length: {len(rest_dataset)}')
+        logging.debug(f'AL train dataset length: {len(al_train_dataset)}, rest dataset length: {len(rest_dataset)}')
         assert len(al_train_dataset) + len(rest_dataset) == len(dataset['train'])
 
 
@@ -609,17 +621,22 @@ class ALTrainer:
             columns=['attention_mask', 'input_ids', 'labels', 'token_type_ids'],
             output_all_columns=True
         )
+        logging.debug(f'Filtering...')
         self.al_train_dataset['unlabelled'] = self.al_train_dataset['unlabelled'].filter(
             lambda example, indice: indice not in indices_to_add,
             with_indices=True
         )
 
+        logging.debug(f'Adding dataset_index column...')
         self.al_train_dataset['unlabelled'] =  self.al_train_dataset['unlabelled'].map(lambda ex, ind: {'dataset_index': ind}, with_indices=True)  # ['index_dataset']
+        logging.debug(f'Setting format...')
         self.al_train_dataset['unlabelled'].set_format(
             type='torch',
             columns=['attention_mask', 'input_ids', 'labels', 'token_type_ids'],
             output_all_columns=True
         )
+
+        logging.debug(f'Smth else...')
         self.al_train_dataset['train'] = self.al_train_dataset['train'].map(
             lambda ex, ind: {'dataset_index': ind}, with_indices=True)  # ['index_dataset']
 
