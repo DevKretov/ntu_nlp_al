@@ -55,6 +55,12 @@ class Dataset:
             self.UNIFIED_LABELS_COLUMN_NAME
         )
         self.dataset = self.dataset.class_encode_column(self.UNIFIED_LABELS_COLUMN_NAME)
+        self.int_2_labels = self.dataset['train'].features[self.UNIFIED_LABELS_COLUMN_NAME].__dict__['_int2str']
+
+        self.dataset = self.dataset.map(
+            lambda _entry: {'label_str': self.int_2_labels[_entry['labels']]})
+
+        
 
     def encode_dataset(self, input_text_column_name, max_length=256, truncation=True):
 
@@ -67,10 +73,14 @@ class Dataset:
             batched=True
         )
 
-        self.dataset = self.dataset.remove_columns(["review", "label"])
+        #self.dataset = self.dataset.remove_columns([input_text_column_name])
         #self.dataset = self.dataset.rename_column("label", "labels")
         # Check the correctness of this operation
-        self.dataset.set_format(type='torch')
+        self.dataset.set_format(
+            type='torch',
+            columns=['attention_mask', 'input_ids', 'labels', 'token_type_ids'],
+            output_all_columns=True
+        )
 
     def get_all_categories(self):
         return self.dataset['train'].features[self.UNIFIED_LABELS_COLUMN_NAME].__dict__['_str2int']
