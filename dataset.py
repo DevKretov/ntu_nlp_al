@@ -265,7 +265,7 @@ class Dataset:
         )
 
         self.test_dataloader = DataLoader(
-            self.dataset['val'],
+            self.dataset['test'],
             batch_size=test_batch_size
         )
 
@@ -427,7 +427,7 @@ class TokenClassificationDataset(Dataset):
         )
 
         self.test_dataloader = DataLoader(
-            self.dataset['val'],
+            self.dataset['test'],
             batch_size=test_batch_size,
             collate_fn=self.processing_function
         )

@@ -6,11 +6,7 @@ from active_learning_trainer import ALTrainer
 from transformers import AutoTokenizer
 from dataset import Dataset, TokenClassificationDataset
 from model import Model
-from transformers import BertForSequenceClassification
-from strategies import RandomStrategy
 
-from transformers import DataCollatorForTokenClassification
-from torch.nn import CrossEntropyLoss
 
 import datetime
 import wandb
