@@ -46,7 +46,7 @@ class _Strategy:
             unlabelled_dataset_dataloader,
             unlabelled_dataset_length,
             device,
-            num_labels = 0
+            model_type = 'classification'
 
     ):
 
@@ -55,6 +55,7 @@ class _Strategy:
         self.unlabelled_dataset_length = unlabelled_dataset_length
         self.device = device
 
+        self.model_type = model_type
         self.log_output_folder = 'al_strategies_log'
         self.log_output_folder_path = Path(self.log_output_folder)
 
@@ -68,7 +69,7 @@ class _Strategy:
         model.eval()
 
         num_batches = len(self.unlabelled_dataset_dataloader)
-        logits_all = None
+
         logging.debug('AL evaluation iteration')
         pbar = tqdm.trange(
             num_batches,
@@ -81,23 +82,46 @@ class _Strategy:
         )
 
         batch_i = 0
+        logits_all = None
         all_labels = None
+        all_labels_tagging = []
+        all_logits_tagging = []
+        all_masks = []
+        batches_data = []
+
         for next_batch in self.unlabelled_dataset_dataloader:
+
+            batches_data.append(next_batch)
+            if self.model_type == 'tagging':
+                next_batch, next_batch_metadata = next_batch
+
             next_batch = {your_key: next_batch[your_key] for your_key in self.training_dict_keys}
             next_batch = {k: v.to(self.device) for k, v in next_batch.items()}
-            if all_labels is None:
-                all_labels = next_batch['labels']
+            if self.model_type == 'classification':
+                if all_labels is None:
+                    all_labels = next_batch['labels']
+                else:
+                    all_labels = torch.cat((all_labels, next_batch['labels']), dim=0)
+            elif self.model_type == 'tagging':
+                all_labels_tagging.append(next_batch['labels'])
+                all_masks.append(next_batch['labels'] != -100)
             else:
-                all_labels = torch.cat((all_labels, next_batch['labels']), dim=0)
+                pass
+
             with torch.no_grad():
                 outputs = model(**next_batch)
             loss = outputs.loss
 
             logits = outputs.logits
-            if logits_all is None:
-                logits_all = logits.data.cpu()
+            if self.model_type == 'classification':
+                if logits_all is None:
+                    logits_all = logits.data.cpu()
+                else:
+                    logits_all = torch.cat((logits_all, logits.data.cpu()))
+            elif self.model_type == 'tagging':
+                all_logits_tagging.append(logits)
             else:
-                logits_all = torch.cat((logits_all, logits.data.cpu()))
+                pass
 
             #predictions = torch.argmax(logits, dim=-1)
             batch_i += 1
@@ -105,9 +129,16 @@ class _Strategy:
             pbar.set_description(f'AL evaluation iteration. Batch {batch_i:5}/{num_batches}')
 
 
+        self.all_logits_tagging = all_logits_tagging
+        self.all_labels_tagging = all_labels_tagging
+        self.all_masks = all_masks
 
-        self.logits = logits_all
-        self.probs = F.softmax(self.logits, dim=1)
+        self.batches_data = batches_data
+        if self.model_type == 'classification':
+            self.logits = logits_all
+            self.probs = F.softmax(self.logits, dim=-1)
+        elif self.model_type == 'tagging':
+            self.probs = [F.softmax(_logits, dim=-1) for _logits in self.all_logits_tagging]
         pass
 
     def query(self, n):
@@ -134,8 +165,8 @@ class _Strategy:
 
 
 class BadgeSampling(_Strategy):
-    def __init__(self, model, dataloader, dataset_len, device, num_labels, embedding_dim, batch_size):
-        super().__init__(model, dataloader, dataset_len, device)
+    def __init__(self, model, dataloader, dataset_len, device, num_labels, embedding_dim, batch_size, model_type):
+        super().__init__(model, dataloader, dataset_len, device, model_type)
 
 
         self.num_labels = num_labels
@@ -217,7 +248,7 @@ class BadgeSampling(_Strategy):
 
         model = self.model.model
         #model = model.to(self.device)
-        logging.debug(f'Is model on CUDA - {model.is_cuda()}')
+        logging.debug(f'Is model on CUDA - {model.device}')
 
         model.eval()
 
@@ -238,6 +269,10 @@ class BadgeSampling(_Strategy):
 
 
         for next_batch in self.unlabelled_dataset_dataloader:
+
+            if self.model_type == 'tagging':
+                next_batch, next_batch_metadata = next_batch
+
             next_batch = {your_key: next_batch[your_key] for your_key in self.training_dict_keys}
             next_batch = {k: v.to(self.device) for k, v in next_batch.items()}
 
@@ -286,8 +321,8 @@ class BadgeSampling(_Strategy):
 
 class KMeansSampling(_Strategy):
 
-    def __init__(self, model, dataloader, dataset_len, device, num_labels, embedding_dim, batch_size):
-        super().__init__(model, dataloader, dataset_len, device)
+    def __init__(self, model, dataloader, dataset_len, device, num_labels, embedding_dim, batch_size, model_type):
+        super().__init__(model, dataloader, dataset_len, device, model_type)
 
         self.num_labels = num_labels
         self.embedding_dim = embedding_dim
@@ -344,6 +379,9 @@ class KMeansSampling(_Strategy):
         )
 
         for next_batch in self.unlabelled_dataset_dataloader:
+            if self.model_type == 'tagging':
+                next_batch, next_batch_metadata = next_batch
+
             next_batch = {your_key: next_batch[your_key] for your_key in self.training_dict_keys}
             next_batch = {k: v.to(self.device) for k, v in next_batch.items()}
 
@@ -376,10 +414,11 @@ class KMeansSampling(_Strategy):
     pass
 
 class EntropySampling(_Strategy):
-    def __init__(self, model, dataloader, dataset_len, device):
-        super().__init__(model, dataloader, dataset_len, device)
+    def __init__(self, model, dataloader, dataset_len, device, model_type):
+        super().__init__(model, dataloader, dataset_len, device, model_type)
 
         self.name = 'entropy_sampling'
+        self.query_i = 0
 
         self.strategy_log_folder_file = self.log_output_folder_path / self.name
         self.strategy_log_folder_file.mkdir(exist_ok=True)
@@ -418,8 +457,8 @@ class EntropySampling(_Strategy):
 
 
 class LeastConfidence(_Strategy):
-    def __init__(self, model, dataloader, dataset_len, device, threshold = 1.0):
-        super().__init__(model, dataloader, dataset_len, device)
+    def __init__(self, model, dataloader, dataset_len, device, model_type, threshold = 1.0):
+        super().__init__(model, dataloader, dataset_len, device, model_type)
 
         self.name = 'least_confidence'
         self.query_i = 0
@@ -461,10 +500,70 @@ class LeastConfidence(_Strategy):
 
 
 
+class TaggingLeastConfidence(_Strategy):
+    def __init__(self, model, dataloader, dataset_len, device, model_type, threshold = 1.0):
+        super().__init__(model, dataloader, dataset_len, device, model_type)
+
+        self.name = 'least_confidence'
+        self.query_i = 0
+        self.threshold = threshold
+
+        self.strategy_log_folder_file = self.log_output_folder_path / self.name
+        self.strategy_log_folder_file.mkdir(exist_ok=True)
+        logging.info('AL Least confidence strategy applied!')
+
+    def update_dataloader(self, new_dataloader):
+        self.unlabelled_dataset_dataloader = new_dataloader
+
+    def update_dataset_len(self, new_dataset_len):
+        self.unlabelled_dataset_length = new_dataset_len
+
+    def query(self, n):
+
+        logging.info(f'Selecting {n} indices from {self.unlabelled_dataset_length} ')
+        self.create_logits()
+
+       # assert self.logits is not None and self.probs is not None, 'Cannot process until these variables are initialized'
+        if self.model_type == 'tagging':
+            log_seqs_probs = []
+            max_probs = [_probs.max(dim=-1) for _probs in self.probs]
+
+            for batch_i in range(len(max_probs)):
+                batch = max_probs[batch_i].values
+                for seq_i in range(len(batch)):
+                    max_values = batch[seq_i][self.all_masks[batch_i][seq_i]].data.cpu().numpy()
+                    log_max_values = np.log(max_values)
+                    seq_len = len(log_max_values)
+                    log_seq_prob = np.sum(log_max_values) / seq_len
+
+                    log_seqs_probs.append(log_seq_prob)
+
+            max_probs = torch.tensor(log_seqs_probs)
+        else:
+            max_probs = self.probs.max(dim=1)[0]
+            max_probs = max_probs[max_probs < self.threshold]
+            n = min(len(max_probs), n)
+
+        indices = max_probs.sort()[1][:n]
+
+        self.query_i += 1
+        self.query_i_name = f'{self.query_i}.json'
+        json.dump(
+            max_probs[indices].data.cpu().numpy().tolist(),
+            open(f'{str(self.strategy_log_folder_file / self.query_i_name)}', 'w'),
+            sort_keys=True,
+            indent=4
+        )
+
+        return indices
+
+
+
+
 class RandomStrategy(_Strategy):
 
-    def __init__(self, model, dataloader, dataset_len, device):
-        super().__init__(model, dataloader, dataset_len, device)
+    def __init__(self, model, dataloader, dataset_len, device, model_type):
+        super().__init__(model, dataloader, dataset_len, device, model_type)
 
         self.name = 'random'
 
