@@ -253,7 +253,7 @@ class Dataset:
 
             self.unlabelled_dataloader = DataLoader(
                 self.al_train_dataset['unlabelled'],
-                batch_size = train_batch_size
+                batch_size = val_batch_size
             )
         else:
             self.train_dataloader = DataLoader(
