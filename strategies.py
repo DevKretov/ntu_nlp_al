@@ -222,7 +222,7 @@ class BadgeSampling(_Strategy):
 
         model = self.model.model
         #model = model.to(self.device)
-        logging.debug(f'Is model on CUDA - {model.is_cuda()}')
+        logging.debug(f'Is model on CUDA - {model.device}')
 
         model.eval()
 
