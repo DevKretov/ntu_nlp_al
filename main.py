@@ -17,22 +17,22 @@ if __name__ == '__main__':
     parameters = dict()
     parameters['use_gpu'] = True
 
-    parameters['weights_and_biases_on'] = True
+    parameters['weights_and_biases_on'] = False
     parameters['weights_and_biases_key'] = '5e5e00356042a33b5cb271399b8d05c9c9d6ded8'
     # TODO: run name based on timestamp
     current_timestamp = str(datetime.datetime.now()).split('.')[0]
 
     # TODO: implement it
-    parameters['weights_and_biases_save_predictions'] = False
+    parameters['weights_and_biases_save_predictions'] = True
 
-    parameters['pretrained_model_name'] = 'prajjwal1/bert-small' #'distilbert-base-uncased'
+    parameters['pretrained_model_name'] = 'prajjwal1/bert-tiny' #'distilbert-base-uncased'
 
 
     # parameters['train_dataset_file_path'] = 'data/imdb/train_IMDB.csv'
     # parameters['val_dataset_file_path'] = 'data/imdb/test_IMDB.csv'
     # parameters['test_dataset_file_path'] = 'data/imdb/test_IMDB.csv'
 
-    parameters['dataset_from_datasets_hub'] = False
+    parameters['dataset_from_datasets_hub'] = True
     parameters['dataset_from_datasets_hub_name'] = 'conll2003'
     parameters['train_dataset_file_path'] = 'data/news/train.csv'
     parameters['val_dataset_file_path'] = 'data/news/val.csv'
@@ -42,8 +42,8 @@ if __name__ == '__main__':
     parameters['dataset_text_column_name'] =  'tokens' #'text'
     parameters['dataset_label_column_name'] = 'ner_tags'#'airline_sentiment'
 
-    parameters['dataset_text_column_name'] = 'text_cleaned'  # 'text'
-    parameters['dataset_label_column_name'] = 'label_reduced'  # 'airline_sentiment'
+   # parameters['dataset_text_column_name'] = 'text_cleaned'  # 'text'
+   # parameters['dataset_label_column_name'] = 'label_reduced'  # 'airline_sentiment'
 
     # TODO: implement this with CrossEntropyLoss
     parameters['loss'] = 'cross_entropy'
@@ -55,17 +55,17 @@ if __name__ == '__main__':
     parameters['test_batch_size'] = 64
     parameters['epochs'] = 5
    # parameters['finetuned_model_type'] = 'classification'
-    parameters['finetuned_model_type'] = 'classification'
+    parameters['finetuned_model_type'] = 'tagging'
     model_type = parameters['finetuned_model_type']
 
 
     parameters['al_iterations'] = 100
     parameters['init_dataset_size'] = 32
     parameters['add_dataset_size'] = 32
-    parameters['al_strategy'] = 'random' #'least_confidence'
+    parameters['al_strategy'] = 'least_confidence' #'least_confidence'
     parameters['full_train'] = False
 
-    parameters['debug'] = False
+    parameters['debug'] = True
 
 
 
@@ -74,6 +74,8 @@ if __name__ == '__main__':
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     parameters['weights_and_biases_run_name'] = f'{current_timestamp}_run_{model_type}_{device}'
+    if parameters['debug']:
+        parameters['weights_and_biases_run_name'] = 'DEBUG_' + parameters['weights_and_biases_run_name']
     print(f'Device set to {device}!')
 
 
@@ -114,6 +116,18 @@ if __name__ == '__main__':
     # dataset_obj.prepare_labels(parameters['dataset_label_column_name'])
     # dataset_obj.encode_dataset(parameters['dataset_text_column_name'])
 
+    # From NLP Example: https://docs.wandb.ai/examples
+    wandb_table = None
+    if parameters['weights_and_biases_on'] and \
+        parameters['weights_and_biases_save_predictions']:
+
+
+        categories = sorted(list(dataset_obj.get_all_categories().items()), key=lambda key: key[1])
+        categories_names = [_tuple[0] for _tuple in categories]
+        wandb_table_columns = ['seq_i', 'text', 'true_label', 'prediction'] + categories_names
+        wandb_table = wandb.Table(columns=wandb_table_columns)
+
+
     print(f'Categories: {dataset_obj.get_all_categories()}')
     num_labels = dataset_obj.get_num_categories()
 
@@ -138,7 +152,8 @@ if __name__ == '__main__':
     trainer = ALTrainer(
         wandb_on=parameters['weights_and_biases_on'],
         imbalanced_training=parameters['class_imbalance_reweight'],
-        model_type=parameters['finetuned_model_type']
+        model_type=parameters['finetuned_model_type'],
+        wandb_table=wandb_table
     )
     trainer.set_model(model)
 

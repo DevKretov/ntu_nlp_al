@@ -71,6 +71,9 @@ class Dataset:
         self.prepare_labels(labels_column_name)
         self.encode_dataset(input_text_column_name, max_length, truncation)
 
+        self.labels_column_name = labels_column_name
+        self.input_text_column_name = input_text_column_name
+
     def prepare_labels(self, labels_column_name):
 
         self.dataset = self.dataset.rename_column(
@@ -156,7 +159,7 @@ class Dataset:
         )
 
         logging.debug(f'Adding dataset_index column...')
-        self.al_train_dataset['unlabelled'] =  self.al_train_dataset['unlabelled'].map(lambda ex, ind: {'dataset_index': ind}, with_indices=True)  # ['index_dataset']
+       # self.al_train_dataset['unlabelled'] =  self.al_train_dataset['unlabelled'].map(lambda ex, ind: {'dataset_index': ind}, with_indices=True)  # ['index_dataset']
         logging.debug(f'Setting format...')
         self.al_train_dataset['unlabelled'].set_format(
             type='torch',
@@ -165,12 +168,12 @@ class Dataset:
         )
 
         logging.debug(f'Smth else...')
-        self.al_train_dataset['train'] = self.al_train_dataset['train'].map(
-            lambda ex, ind: {'dataset_index': ind}, with_indices=True)  # ['index_dataset']
-
-        self.al_train_dataset_indices.append(
-            indices_to_add
-        )
+        # self.al_train_dataset['train'] = self.al_train_dataset['train'].map(
+        #     lambda ex, ind: {'dataset_index': ind}, with_indices=True)  # ['index_dataset']
+        #
+        # self.al_train_dataset_indices.append(
+        #     indices_to_add
+        # )
 
     def prepare_al_datasets(
             self,
@@ -195,9 +198,9 @@ class Dataset:
         self.al_train_dataset_indices = selected_indices#.tolist()
 
         al_train_dataset = dataset['train'].filter(lambda example: example['index'] in selected_indices)
-        al_train_dataset = al_train_dataset.map(lambda ex, ind: {'dataset_index': ind}, with_indices=True)#['index_dataset']
+     #   al_train_dataset = al_train_dataset.map(lambda ex, ind: {'dataset_index': ind}, with_indices=True)#['index_dataset']
         rest_dataset = dataset['train'].filter(lambda example: example['index'] not in selected_indices)
-        rest_dataset = rest_dataset.map(lambda ex, ind: {'dataset_index': ind}, with_indices=True)#['index_dataset']
+      #  rest_dataset = rest_dataset.map(lambda ex, ind: {'dataset_index': ind}, with_indices=True)#['index_dataset']
 
         self.al_train_dataset = {
             'train': al_train_dataset,
@@ -219,11 +222,11 @@ class Dataset:
         if al:
             if 'index' in self.al_train_dataset['train'].features.keys():
                 self.al_train_dataset['train'] = self.al_train_dataset['train'].remove_columns(["index"])
-            self.al_train_dataset['train'] = self.al_train_dataset['train'].remove_columns(["dataset_index"])
+          #  self.al_train_dataset['train'] = self.al_train_dataset['train'].remove_columns(["dataset_index"])
 
             if 'index' in self.al_train_dataset['unlabelled'].features.keys():
                 self.al_train_dataset['unlabelled'] = self.al_train_dataset['unlabelled'].remove_columns(["index"])
-            self.al_train_dataset['unlabelled'] = self.al_train_dataset['unlabelled'].remove_columns(["dataset_index"])
+          #  self.al_train_dataset['unlabelled'] = self.al_train_dataset['unlabelled'].remove_columns(["dataset_index"])
 
             # imbalanced training resampling
 
@@ -319,9 +322,15 @@ class TokenClassificationDataset(Dataset):
         self.int_2_labels = self.dataset['train'].features['ner_tags'].feature.names
 
     def get_all_categories(self):
-        ner_tags_flattened = list(reduce(lambda a, b: a + b, self.dataset['train'][self.labels_column_name]))
-        self.num_labels = len(set(ner_tags_flattened))
-        return sorted(list(set(ner_tags_flattened)))
+
+        tags = self.dataset['train'].features[self.labels_column_name].feature.names
+        tags_dict = {tag: i for i, tag in enumerate(tags)}
+
+        self.num_labels = len(tags)
+        return tags_dict
+        # ner_tags_flattened = list(reduce(lambda a, b: a + b, self.dataset['train'][self.labels_column_name]))
+        # self.num_labels = len(set(ner_tags_flattened))
+        # return sorted(list(set(ner_tags_flattened)))
 
     def get_num_categories(self):
         if self.num_labels is None:
@@ -353,9 +362,9 @@ class TokenClassificationDataset(Dataset):
         self.al_train_dataset_indices = selected_indices#.tolist()
 
         al_train_dataset = dataset['train'].filter(lambda example: example['index'] in selected_indices)
-        al_train_dataset = al_train_dataset.map(lambda ex, ind: {'dataset_index': ind}, with_indices=True)#['index_dataset']
+      #  al_train_dataset = al_train_dataset.map(lambda ex, ind: {'dataset_index': ind}, with_indices=True)#['index_dataset']
         rest_dataset = dataset['train'].filter(lambda example: example['index'] not in selected_indices)
-        rest_dataset = rest_dataset.map(lambda ex, ind: {'dataset_index': ind}, with_indices=True)#['index_dataset']
+      #  rest_dataset = rest_dataset.map(lambda ex, ind: {'dataset_index': ind}, with_indices=True)#['index_dataset']
 
         self.al_train_dataset = {
             'train': al_train_dataset,
@@ -377,11 +386,11 @@ class TokenClassificationDataset(Dataset):
         if al:
             if 'index' in self.al_train_dataset['train'].features.keys():
                 self.al_train_dataset['train'] = self.al_train_dataset['train'].remove_columns(["index"])
-            self.al_train_dataset['train'] = self.al_train_dataset['train'].remove_columns(["dataset_index"])
+            #self.al_train_dataset['train'] = self.al_train_dataset['train'].remove_columns(["dataset_index"])
 
             if 'index' in self.al_train_dataset['unlabelled'].features.keys():
                 self.al_train_dataset['unlabelled'] = self.al_train_dataset['unlabelled'].remove_columns(["index"])
-            self.al_train_dataset['unlabelled'] = self.al_train_dataset['unlabelled'].remove_columns(["dataset_index"])
+           # self.al_train_dataset['unlabelled'] = self.al_train_dataset['unlabelled'].remove_columns(["dataset_index"])
 
             # imbalanced training resampling
 
@@ -482,6 +491,47 @@ class TokenClassificationDataset(Dataset):
             total_adjusted_labels.append(adjusted_label_ids)
         tokenized_samples[self.UNIFIED_LABELS_COLUMN_NAME] = total_adjusted_labels
         return tokenized_samples
+
+    def update_al_datasets_with_new_batch(self, indices_to_add):
+        #dataset = self.dataset.dataset
+
+        data_to_add = self.al_train_dataset['unlabelled'].select(indices_to_add)
+       # data_to_add.set_format(type='torch')
+       # print('')
+        self.al_train_dataset['train'] = concatenate_datasets(
+            [
+                self.al_train_dataset['train'],
+                data_to_add
+            ]
+        )
+       # self.al_train_dataset['train'].set_format(type='torch')
+       #  self.al_train_dataset['train'].set_format(
+       #      type='torch',
+       #      columns=['attention_mask', 'input_ids', 'labels', 'token_type_ids'],
+       #      output_all_columns=True
+       #  )
+        logging.debug(f'Filtering...')
+        self.al_train_dataset['unlabelled'] = self.al_train_dataset['unlabelled'].filter(
+            lambda example, indice: indice not in indices_to_add,
+            with_indices=True
+        )
+
+        logging.debug(f'Adding dataset_index column...')
+        #self.al_train_dataset['unlabelled'] =  self.al_train_dataset['unlabelled'].map(lambda ex, ind: {'dataset_index': ind}, with_indices=True)  # ['index_dataset']
+        logging.debug(f'Setting format...')
+        # self.al_train_dataset['unlabelled'].set_format(
+        #     type='torch',
+        #     columns=['attention_mask', 'input_ids', 'labels', 'token_type_ids'],
+        #     output_all_columns=True
+        # )
+
+        logging.debug(f'Smth else...')
+        # self.al_train_dataset['train'] = self.al_train_dataset['train'].map(
+        #     lambda ex, ind: {'dataset_index': ind}, with_indices=True)  # ['index_dataset']
+
+        # self.al_train_dataset_indices.append(
+        #     indices_to_add
+        # )
 
     def encode_dataset(self, input_text_column_name, max_length=256, truncation=True):
         pass

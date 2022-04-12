@@ -35,7 +35,8 @@ class ALTrainer:
             self,
             wandb_on=False,
             imbalanced_training=False,
-            model_type='classification'
+            model_type='classification',
+            wandb_table=None
     ):
 
         self.wandb_on = wandb_on
@@ -47,7 +48,7 @@ class ALTrainer:
 
         self.lr_scheduler = None
         self.metrics = []
-        pass
+        self.wandb_table = wandb_table
 
     def set_model(self, model):
         self.model = model
@@ -248,7 +249,12 @@ class ALTrainer:
                     model_type=self.model_type
                 )
             elif strategy.lower().strip() == 'least_confidence':
-                strategy = LeastConfidence(
+                _class = LeastConfidence
+                if self.model_type == 'tagging':
+                    _class = TaggingLeastConfidence
+
+
+                strategy = _class(
                     self.model,
                     self.dataset.unlabelled_dataloader,
                     len(self.dataset.al_train_dataset['unlabelled']),
@@ -508,20 +514,23 @@ class ALTrainer:
         labels_all = None
         predictions_all = None
 
-        for next_batch in dataloader:
-            if self.model_type == 'tagging':
-                next_batch, next_batch_metadata = next_batch
+        wandb_table_predictions_data = []
 
-            next_batch = {your_key: next_batch[your_key] for your_key in self.training_dict_keys}
+        for next_batch_full in dataloader:
+            if self.model_type == 'tagging':
+                next_batch_full, next_batch_metadata = next_batch_full
+
+            next_batch = {your_key: next_batch_full[your_key] for your_key in self.training_dict_keys}
             next_batch = {k: v.to(self.device) for k, v in next_batch.items()}
             with torch.no_grad():
                 outputs = model(**next_batch)
             loss = outputs.loss
 
-            # TODO: follow this page and create tables for each evaluation run
-            #   https://docs.wandb.ai/examples
             logits = outputs.logits
             predictions = torch.argmax(logits, dim=-1)
+
+            probs = F.softmax(logits, dim=-1)
+            probs = probs.data.cpu().numpy()
 
             labels_seqeval = next_batch["labels"].data.cpu().numpy()#.tolist()
             predictions_seqeval = predictions.data.cpu().numpy()#.tolist()
@@ -533,19 +542,56 @@ class ALTrainer:
                 for seq_i in range(len(labels_seqeval)):
                     _seq_labels = labels_seqeval[seq_i]
                     _seq_predictions = predictions_seqeval[seq_i]
-
                     mask = _seq_labels != -100
+
+                    _probs = probs[seq_i, mask]#.tolist()
                     _seq_labels = _seq_labels[mask].tolist()
                     _seq_predictions = _seq_predictions[mask].tolist()
 
-
                     _seq_labels = [self.dataset.int_2_labels[_tag] for _tag in _seq_labels]
                     _seq_predictions = [self.dataset.int_2_labels[_tag] for _tag in _seq_predictions]
+                    _seq_tokens = next_batch_metadata[seq_i][self.dataset.tokens_column_name]
+                    _seq_tokens = self.dataset.tokenizer.tokenize(_seq_tokens, is_split_into_words=True)
+                    _seq_id = np.full(len(_seq_tokens), seq_i)
 
                     labels_seqeval_new.append(_seq_labels)
                     predictions_seqeval_new.append(_seq_predictions)
 
+                    wandb_table_data_batch = np.hstack(
+                        (
+                            _seq_id.reshape(-1, 1),
+                            np.array(_seq_tokens).reshape(-1, 1),
+                            np.array(_seq_labels).reshape(-1, 1),
+                            np.array(_seq_predictions).reshape(-1, 1),
+                            _probs
+                        )
+                    )
 
+                    if self.wandb_table is not None:
+                        for data_row in wandb_table_data_batch.tolist():
+                            self.wandb_table.add_data(*data_row)
+
+
+
+            elif self.model_type == 'classification':
+
+                labels_str = [self.dataset.int_2_labels[_label] for _label in labels_seqeval]
+                predictions_str = [self.dataset.int_2_labels[_label] for _label in predictions_seqeval]
+                seq_i = np.arange(len(labels_str) * batch_i, len(labels_str) * (batch_i + 1))
+
+                wandb_table_data_batch = np.hstack(
+                    (
+                        seq_i.reshape(-1, 1),
+                        np.array(next_batch_full[self.dataset.input_text_column_name]).reshape(-1, 1),
+                        np.array(labels_str).reshape(-1, 1),
+                        np.array(predictions_str).reshape(-1, 1),
+                        probs
+                    )
+                )
+
+                if self.wandb_table is not None:
+                    for data_row in wandb_table_data_batch.tolist():
+                        self.wandb_table.add_data(*data_row)
 
             #if self.model_type != 'tagging':
             if labels_all is None:
@@ -595,7 +641,8 @@ class ALTrainer:
                     class_names=self.dataset.int_2_labels
                 )
 
-            logging.info(confusion_matrix(labels_all_lst, predictions_all_lst, labels=self.dataset.int_2_labels))
+            conf_matrix = confusion_matrix(labels_all_lst, predictions_all_lst, labels=self.dataset.int_2_labels)
+            logging.info('\n{conf_matrix}')
 
             for metric in self.metrics:
                 if metric.name in self.METRICS_TO_USE_AVEGARE_IN:
@@ -629,7 +676,13 @@ class ALTrainer:
         if mode=='Test':
             eval_result['test_loss'] = np.mean(eval_loss)
             if self.wandb_on:
+                if self.wandb_table is not None:
+                    eval_result['test_predictions_table'] = self.wandb_table
+
                 wandb.log(eval_result)
+
+                if self.wandb_table is not None:
+                    self.wandb_table = wandb.Table(columns=self.wandb_table.columns)
             #return eval_result
 
 
