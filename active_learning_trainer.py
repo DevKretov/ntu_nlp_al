@@ -44,7 +44,7 @@ class ALTrainer:
         self.imbalanced_training = imbalanced_training
         self.rng = np.random.RandomState(2022)
 
-        self.training_dict_keys = ['attention_mask', 'input_ids', 'labels', 'token_type_ids']
+        self.training_dict_keys = ['attention_mask', 'input_ids', 'labels']
 
         self.lr_scheduler = None
         self.metrics = []

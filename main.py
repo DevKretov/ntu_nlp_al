@@ -17,7 +17,7 @@ if __name__ == '__main__':
     parameters = dict()
     parameters['use_gpu'] = True
 
-    parameters['weights_and_biases_on'] = False
+    parameters['weights_and_biases_on'] = True
     parameters['weights_and_biases_key'] = '5e5e00356042a33b5cb271399b8d05c9c9d6ded8'
     # TODO: run name based on timestamp
     current_timestamp = str(datetime.datetime.now()).split('.')[0]

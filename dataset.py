@@ -104,7 +104,7 @@ class Dataset:
         # Check the correctness of this operation
         self.dataset.set_format(
             type='torch',
-            columns=['attention_mask', 'input_ids', 'labels', 'token_type_ids'],
+            columns=['attention_mask', 'input_ids', 'labels'],
             output_all_columns=True
         )
 
@@ -149,7 +149,7 @@ class Dataset:
        # self.al_train_dataset['train'].set_format(type='torch')
         self.al_train_dataset['train'].set_format(
             type='torch',
-            columns=['attention_mask', 'input_ids', 'labels', 'token_type_ids'],
+            columns=['attention_mask', 'input_ids', 'labels'],
             output_all_columns=True
         )
         logging.debug(f'Filtering...')
@@ -163,7 +163,7 @@ class Dataset:
         logging.debug(f'Setting format...')
         self.al_train_dataset['unlabelled'].set_format(
             type='torch',
-            columns=['attention_mask', 'input_ids', 'labels', 'token_type_ids'],
+            columns=['attention_mask', 'input_ids', 'labels'],
             output_all_columns=True
         )
 
@@ -444,7 +444,7 @@ class TokenClassificationDataset(Dataset):
 
     def processing_function(self, batch):
 
-        list_of_keys_to_collate = ['attention_mask', 'labels', 'token_type_ids', 'input_ids']
+        list_of_keys_to_collate = ['attention_mask', 'labels', 'input_ids']
         list_of_keys_not_to_collate = set(batch[0].keys()) - set(list_of_keys_to_collate)
         batch_to_collate = [
             {_key: _one_entry[_key] for _key in list_of_keys_to_collate} for _one_entry in batch

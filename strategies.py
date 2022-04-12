@@ -61,7 +61,7 @@ class _Strategy:
 
         self.log_output_folder_path.mkdir(exist_ok=True)
 
-        self.training_dict_keys = ['attention_mask', 'input_ids', 'labels', 'token_type_ids']
+        self.training_dict_keys = ['attention_mask', 'input_ids', 'labels']
 
     def create_logits(self):
         model = self.model.model
