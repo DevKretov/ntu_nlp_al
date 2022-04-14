@@ -401,7 +401,7 @@ class KMeansSampling(_Strategy):
             logits = outputs.logits
 
             #out_np = np.mean(outputs[2][-1].data.cpu().numpy(), axis=1)
-            out_np = hidden_states_pooled = outputs.hidden_states[-1][:, 0].data.cpu().numpy()
+            out_np = outputs.hidden_states[-1][:, 0].data.cpu().numpy()
 
             embedding[idxs] = out_np
 
