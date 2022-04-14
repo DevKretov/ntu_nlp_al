@@ -6,11 +6,17 @@ from active_learning_trainer import ALTrainer
 from transformers import AutoTokenizer
 from dataset import Dataset, TokenClassificationDataset
 from model import Model
-
+import pandas as pd
 
 import datetime
 import wandb
+from pathlib import Path
+import json
 
+LOCAL_RUNS_FOLDER = 'runs'
+LOCAL_RUNS_FOLDER_PATH = Path(LOCAL_RUNS_FOLDER)
+
+TRASK = True
 
 if __name__ == '__main__':
 
@@ -18,12 +24,12 @@ if __name__ == '__main__':
     parameters['use_gpu'] = True
 
     parameters['weights_and_biases_on'] = True
-    parameters['weights_and_biases_key'] = '5e5e00356042a33b5cb271399b8d05c9c9d6ded8'
+    parameters['weights_and_biases_key'] = '6dcdbcb537587c3adf5e7d6f8ece3d9d5223f3ad'
     # TODO: run name based on timestamp
     current_timestamp = str(datetime.datetime.now()).split('.')[0]
 
-    # TODO: implement it
     parameters['weights_and_biases_save_predictions'] = True
+    parameters['weights_and_biases_save_dataset_artifacts'] = True
 
     parameters['pretrained_model_name'] = 'prajjwal1/bert-tiny' #'distilbert-base-uncased'
 
@@ -32,7 +38,7 @@ if __name__ == '__main__':
     # parameters['val_dataset_file_path'] = 'data/imdb/test_IMDB.csv'
     # parameters['test_dataset_file_path'] = 'data/imdb/test_IMDB.csv'
 
-    parameters['dataset_from_datasets_hub'] = True
+    parameters['dataset_from_datasets_hub'] = False
     parameters['dataset_from_datasets_hub_name'] = 'conll2003'
     parameters['train_dataset_file_path'] = 'data/news/train.csv'
     parameters['val_dataset_file_path'] = 'data/news/val.csv'
@@ -42,8 +48,18 @@ if __name__ == '__main__':
     parameters['dataset_text_column_name'] =  'tokens' #'text'
     parameters['dataset_label_column_name'] = 'ner_tags'#'airline_sentiment'
 
-   # parameters['dataset_text_column_name'] = 'text_cleaned'  # 'text'
-   # parameters['dataset_label_column_name'] = 'label_reduced'  # 'airline_sentiment'
+    # parameters['train_dataset_file_path'] = 'data/csob/train.csv'
+    # parameters['val_dataset_file_path'] = 'data/csob/val.csv'
+    # parameters['test_dataset_file_path'] = 'data/csob/test.csv'
+    # parameters['dataset_file_delimiter'] = ','
+    #
+    # ### FIRST IS FOR TAGGING
+    # parameters['dataset_text_column_name'] = 'text'  # 'text'
+    # parameters['dataset_label_column_name'] = 'category'  # 'airline_sentiment'
+
+
+    parameters['dataset_text_column_name'] = 'text_cleaned'  # 'text'
+    parameters['dataset_label_column_name'] = 'label_reduced'  # 'airline_sentiment'
 
     # TODO: implement this with CrossEntropyLoss
     parameters['loss'] = 'cross_entropy'
@@ -54,15 +70,16 @@ if __name__ == '__main__':
     parameters['val_batch_size'] = 64
     parameters['test_batch_size'] = 64
     parameters['epochs'] = 5
-   # parameters['finetuned_model_type'] = 'classification'
-    parameters['finetuned_model_type'] = 'tagging'
+    parameters['finetuned_model_type'] = 'classification'
+   # parameters['finetuned_model_type'] = 'tagging'
     model_type = parameters['finetuned_model_type']
 
 
     parameters['al_iterations'] = 100
     parameters['init_dataset_size'] = 32
     parameters['add_dataset_size'] = 32
-    parameters['al_strategy'] = 'least_confidence' #'least_confidence'
+    parameters['al_strategy'] = 'random' #'least_confidence'
+    parameters['al_strategy'] = 'random' #'least_confidence'
     parameters['full_train'] = False
 
     parameters['debug'] = True
@@ -108,9 +125,9 @@ if __name__ == '__main__':
             delimiter=parameters['dataset_file_delimiter']
         )
 
-    dataset_obj.truncate_dataset('train', 10000)
-    dataset_obj.truncate_dataset('val', 1000)
-    dataset_obj.truncate_dataset('test', 10000)
+    dataset_obj.truncate_dataset('train', 10000, shuffle=True)
+    dataset_obj.truncate_dataset('val', 1000, shuffle=True)
+    dataset_obj.truncate_dataset('test', 1000, shuffle=True)
 
     dataset_obj.prepare_dataset(parameters['dataset_label_column_name'], parameters['dataset_text_column_name'], )
     # dataset_obj.prepare_labels(parameters['dataset_label_column_name'])
@@ -137,10 +154,15 @@ if __name__ == '__main__':
         num_labels=num_labels
     )
 
+    run = None
+
+    this_run_folder_path = LOCAL_RUNS_FOLDER_PATH / parameters['weights_and_biases_run_name']
+    this_run_folder_path.mkdir(exist_ok=True, parents=True)
+
 
     if parameters['weights_and_biases_on']:
-        wandb.login(key='5e5e00356042a33b5cb271399b8d05c9c9d6ded8')
-        wandb.init(
+        wandb.login(key=parameters['weights_and_biases_key'])
+        run = wandb.init(
             name=parameters['weights_and_biases_run_name'],
             project='ntu_al',
             reinit=True
@@ -148,12 +170,26 @@ if __name__ == '__main__':
 
         wandb.config.update(parameters)
         wandb.watch(model.model)
+        artifact = wandb.Artifact('csob-dataset', type='dataset')
+
+        for _dataset in dataset_obj.dataset.keys():
+            save_path = str(this_run_folder_path / (_dataset + '_dataset.csv'))
+            dataset_df = pd.DataFrame.from_dict(
+                dataset_obj.dataset[_dataset].to_dict(32)
+            ).to_csv(save_path, index=False)
+
+            artifact.add_file(save_path)
+
+        run.log_artifact(artifact)
+
 
     trainer = ALTrainer(
         wandb_on=parameters['weights_and_biases_on'],
         imbalanced_training=parameters['class_imbalance_reweight'],
         model_type=parameters['finetuned_model_type'],
-        wandb_table=wandb_table
+        wandb_run=run,
+        wandb_table=wandb_table,
+        wandb_save_datasets_artifacts=parameters['weights_and_biases_save_dataset_artifacts']
     )
     trainer.set_model(model)
 
@@ -207,8 +243,8 @@ if __name__ == '__main__':
         train_batch_size=parameters['train_batch_size'],
         val_batch_size=parameters['val_batch_size'],
         test_batch_size=parameters['test_batch_size'],
-        debug=parameters['debug']
+        debug=parameters['debug'],
     )
+
    # trainer.train_model(parameters['epochs'])
 
-    #al_strategy = RandomStrategy(model, )

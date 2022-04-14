@@ -25,6 +25,8 @@ class Dataset:
     UNIFIED_LABELS_COLUMN_NAME = 'labels'
     UNIFIED_LABELS_TXT_COLUMN_NAME = 'labels_txt'
 
+    LABELS_STR_COLUMN_NAME = 'label_str'
+
     def __init__(self, tokenizer):
         self.rng = np.random.RandomState(2022)
         self.tokenizer = tokenizer
@@ -85,7 +87,7 @@ class Dataset:
         self.int_2_labels = self.dataset['train'].features[self.UNIFIED_LABELS_COLUMN_NAME].__dict__['_int2str']
 
         self.dataset = self.dataset.map(
-            lambda _entry: {'label_str': self.int_2_labels[_entry['labels']]}
+            lambda _entry: {self.LABELS_STR_COLUMN_NAME: self.int_2_labels[_entry['labels']]}
         )
 
     def encode_dataset(self, input_text_column_name, max_length=256, truncation=True):

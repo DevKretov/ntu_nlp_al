@@ -36,7 +36,9 @@ class ALTrainer:
             wandb_on=False,
             imbalanced_training=False,
             model_type='classification',
-            wandb_table=None
+            wandb_run=None,
+            wandb_table=None,
+            wandb_save_datasets_artifacts=False
     ):
 
         self.wandb_on = wandb_on
@@ -48,7 +50,10 @@ class ALTrainer:
 
         self.lr_scheduler = None
         self.metrics = []
+
+        self.wandb_run = wandb_run
         self.wandb_table = wandb_table
+        self.wandb_save_datasets_artifacts = wandb_run and wandb_save_datasets_artifacts
 
     def set_model(self, model):
         self.model = model
@@ -58,68 +63,6 @@ class ALTrainer:
 
     def set_dataset(self, dataset:Dataset):
         self.dataset = dataset
-
-    # def prepare_dataloaders(
-    #         self,
-    #         train_batch_size = 32,
-    #         val_batch_size = 64,
-    #         test_batch_size = 64,
-    #         al=False
-    # ):
-    #
-    #     if al:
-    #         if 'index' in self.al_train_dataset['train'].features.keys():
-    #             self.al_train_dataset['train'] = self.al_train_dataset['train'].remove_columns(["index"])
-    #         self.al_train_dataset['train'] = self.al_train_dataset['train'].remove_columns(["dataset_index"])
-    #
-    #         if 'index' in self.al_train_dataset['unlabelled'].features.keys():
-    #             self.al_train_dataset['unlabelled'] = self.al_train_dataset['unlabelled'].remove_columns(["index"])
-    #         self.al_train_dataset['unlabelled'] = self.al_train_dataset['unlabelled'].remove_columns(["dataset_index"])
-    #
-    #         # imbalanced training resampling
-    #
-    #         sampler = None
-    #         shuffle = True
-    #
-    #         if self.imbalanced_training:
-    #             labels = self.dataset.dataset['train']['labels'].numpy()
-    #             labels_unique = np.unique(labels)
-    #             class_weights = compute_class_weight(class_weight = 'balanced', classes=labels_unique, y=labels)
-    #
-    #             labels_al = self.al_train_dataset['train']['labels'].tolist()
-    #             samples_weights = [class_weights[_label] for _label in labels_al]
-    #             num_samples = len(self.al_train_dataset['train']['labels'])
-    #             sampler = WeightedRandomSampler(samples_weights, num_samples)
-    #             shuffle = False
-    #
-    #         self.train_dataloader = DataLoader(
-    #             self.al_train_dataset['train'],
-    #             shuffle=shuffle,
-    #             batch_size=train_batch_size,
-    #             sampler=sampler
-    #         )
-    #
-    #         self.unlabelled_dataloader = DataLoader(
-    #             self.al_train_dataset['unlabelled'],
-    #             batch_size = train_batch_size
-    #         )
-    #     else:
-    #         self.train_dataloader = DataLoader(
-    #             self.dataset.dataset['train'],
-    #             shuffle=True,
-    #             batch_size=train_batch_size
-    #         )
-    #
-    #     self.val_dataloader = DataLoader(
-    #         self.dataset.dataset['val'],
-    #         batch_size=val_batch_size
-    #     )
-    #
-    #     self.test_dataloader = DataLoader(
-    #         self.dataset.dataset['val'],
-    #         batch_size=test_batch_size
-    #     )
-
 
     # TODO: decide if needed considering transformers...
     def set_criterion(self, criterion):
@@ -141,7 +84,7 @@ class ALTrainer:
         #         )
         self.lr_scheduler = None
 
-    def send_model_to_devide(self):
+    def send_model_to_device(self):
         self.model.model = self.model.model.to(self.device)
         logging.debug(f'START: Is model on CUDA - {self.model.model.device}')
        # self.model = self.model.to(self.device)
@@ -154,7 +97,6 @@ class ALTrainer:
 
     def add_evaluation_metric(self, metric_obj):
         self.metrics.append(metric_obj)
-
 
     def full_train(
             self,
@@ -193,7 +135,6 @@ class ALTrainer:
             epochs=train_epochs,
             steps_per_epoch=steps_per_epoch,
             evaluation_steps_num=evaluation_steps
-
         )
 
         logging.info(f'\nFull training finished')
@@ -231,6 +172,13 @@ class ALTrainer:
             imbalanced_training=self.imbalanced_training,
             al=True
         )
+
+        al_dataset_add_artifact = None
+        train_dataset_artifact = None
+
+        if self.wandb_save_datasets_artifacts:
+            al_dataset_add_artifact = wandb.Artifact('al_dataset', type='dataset')
+            train_dataset_artifact = wandb.Artifact('train_dataset', type='dataset')
 
         logging.info(f'Training is run on {len(self.dataset.train_dataloader)} batches!')
         logging.info(f'Evaluation is run on {len(self.dataset.val_dataloader)} batches!')
@@ -306,8 +254,6 @@ class ALTrainer:
             else:
                 pass
 
-
-
         for al_iteration in range(al_iterations):
             logging.info(f'\n===========================================================')
             logging.info(f'\nAL iteration {(al_iteration + 1):3}/{al_iterations}')
@@ -324,7 +270,6 @@ class ALTrainer:
                 steps_per_epoch=steps_per_epoch,
                 evaluation_steps_num=evaluation_steps,
                 al_iteration=al_iteration
-
             )
 
             logging.debug(f'Model trained! Running AL strategy...')
@@ -337,12 +282,30 @@ class ALTrainer:
             )
 
             selected_dataset = self.dataset.al_train_dataset['unlabelled'].select(indices)
-         #   selected_dataset.save_to_disk(f'dataset_{al_iteration}.csv')
 
-            save_path = str(strategy.strategy_log_folder_file / f'add_dataset_{al_iteration}.csv')
-            pd.DataFrame.from_dict(
+            # Save additional data entries from AL query to local storage and to W&B
+            al_selected_dataset_save_path = str(strategy.strategy_log_folder_file / f'al_selected_dataset_{al_iteration}.csv')
+            al_selected_dataset_df = pd.DataFrame.from_dict(
                 selected_dataset.to_dict(32)
-            ).to_csv(save_path, index=False)
+            )[[self.dataset.LABELS_STR_COLUMN_NAME, self.dataset.input_text_column_name]]#
+            al_selected_dataset_df.to_csv(al_selected_dataset_save_path, index=False)
+
+            # Save current training dataset to local storage and to W&B
+            training_dataset_save_path = str(strategy.strategy_log_folder_file / f'train_dataset_{al_iteration}.csv')
+            train_dataset_df = pd.DataFrame.from_dict(
+                self.dataset.al_train_dataset['train'].to_dict(32)
+            )[[self.dataset.LABELS_STR_COLUMN_NAME, self.dataset.input_text_column_name]]  #
+            train_dataset_df.to_csv(training_dataset_save_path, index=False)
+
+            if self.wandb_on:
+                al_dataset_add_artifact.add_file(al_selected_dataset_save_path)
+                self.wandb_run.log_artifact(al_dataset_add_artifact)
+
+                train_dataset_artifact.add_file(training_dataset_save_path)
+                self.wandb_run.log_artifact(train_dataset_artifact)
+
+                al_dataset_add_artifact = wandb.Artifact('al_dataset', type='dataset')
+                train_dataset_artifact = wandb.Artifact('train_dataset', type='dataset')
 
             logging.debug(f'Returned {len(indices)} indices from strategy')
 
@@ -384,7 +347,7 @@ class ALTrainer:
 
 
         self.model.reinit_model()
-        self.send_model_to_devide()
+        self.send_model_to_device()
         model = self.model.model
 
         if self.device != 'cpu':
@@ -453,7 +416,10 @@ class ALTrainer:
             if evaluation_steps_num == -1:
                 evaluation_steps_num = len(self.dataset.val_dataloader)
 
+        if self.wandb_on:
+            wandb.log({'train_mean_loss': np.mean(losses_list)})
         # TODO: decide if I want to evaluate every training epoch
+
         self.evaluate(
             num_batches_to_eval=evaluation_steps_num,
             dataloader=self.dataset.val_dataloader,
@@ -515,6 +481,7 @@ class ALTrainer:
         predictions_all = None
 
         wandb_table_predictions_data = []
+        evaluation_table_data = []
 
         for next_batch_full in dataloader:
             if self.model_type == 'tagging':
@@ -537,6 +504,8 @@ class ALTrainer:
 
             labels_seqeval_new = []
             predictions_seqeval_new = []
+
+
 
             if self.model_type == 'tagging':
                 for seq_i in range(len(labels_seqeval)):
@@ -569,6 +538,7 @@ class ALTrainer:
 
                     if self.wandb_table is not None:
                         for data_row in wandb_table_data_batch.tolist():
+                            evaluation_table_data.append(data_row)
                             self.wandb_table.add_data(*data_row)
 
 
@@ -591,6 +561,7 @@ class ALTrainer:
 
                 if self.wandb_table is not None:
                     for data_row in wandb_table_data_batch.tolist():
+                        evaluation_table_data.append(data_row)
                         self.wandb_table.add_data(*data_row)
 
             #if self.model_type != 'tagging':
@@ -678,6 +649,18 @@ class ALTrainer:
             if self.wandb_on:
                 if self.wandb_table is not None:
                     eval_result['test_predictions_table'] = self.wandb_table
+
+                    if self.wandb_save_datasets_artifacts:
+                        logging.debug(f'Saving evaluation table artifact...')
+                        evaluate_table_artifact = wandb.Artifact('eval_table', type='evaluation')
+
+                        evaluate_table_path = str(Path(self.wandb_run.dir) / 'evaluation_table.csv')
+                        evaluation_result_df = pd.DataFrame.from_records(evaluation_table_data, columns=self.wandb_table.columns)
+                        evaluation_result_df.to_csv(evaluate_table_path, index=False)
+                        evaluate_table_artifact.add_file(evaluate_table_path)
+                        self.wandb_run.log_artifact(evaluate_table_artifact)
+
+
 
                 wandb.log(eval_result)
 

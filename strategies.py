@@ -218,7 +218,7 @@ class BadgeSampling(_Strategy):
         return indsAll, distances
 
     def query(self, n):
-       # idxs_unlabeled = np.arange(self.n_pool)[~self.idxs_lb]
+
         gradEmbedding = self.get_grad_embedding().numpy()
         chosen, distances = self.init_centers(gradEmbedding, n)
 
