@@ -228,7 +228,7 @@ class ALTrainer:
                     model_type=self.model_type,
                     num_labels=self.model.num_labels,
                     embedding_dim=self.model.model.config.hidden_size,
-                    batch_size=train_batch_size
+                    batch_size=val_batch_size
                 )
 
             elif strategy.lower().strip() == 'entropy':
