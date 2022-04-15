@@ -1,0 +1,11 @@
+
+load_from_hub: False
+hub_dataset_name: 'name'
+
+train_file_path: 'data/news/train.csv'
+val_file_path: 'data/news/val.csv'
+test_file_path: 'data/news/test.csv'
+delimiter: ','
+
+text_column_name: 'text_cleaned'
+label_column_name: 'label_reduced'

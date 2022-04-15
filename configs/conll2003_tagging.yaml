@@ -1,0 +1,6 @@
+
+load_from_hub: True
+hub_dataset_name: 'conll2003'
+
+text_column_name: 'tokens'
+label_column_name: 'ner_tags'

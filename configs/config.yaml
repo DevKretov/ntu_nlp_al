@@ -1,0 +1,134 @@
+app:
+
+  debug_mode: True
+  model_classification_name: 'classification'
+  model_tagging_name: 'tagging'
+
+  #selected_dataset: 'csob_classification'
+  selected_dataset: 'conll2003_tagging'
+
+  strategy: 'least_confidence'
+
+  strategies:
+    random: 'random'
+    least_confidence: 'least_confidence'
+    least_confidence_thresh: 'least_confidence_thresh'
+    badge: 'badge'
+    entropy: 'entropy'
+    kmeans: 'kmeans'
+
+  eval_mode: 'Eval'
+  test_mode: 'Test'
+
+  dataset_train_key: 'train'
+  dataset_val_key: 'val'
+  dataset_test_key: 'test'
+
+model:
+
+  use_gpu: True
+
+  pretrained_model_name: 'prajjwal1/bert-tiny'
+  finetuned_model_type: 'tagging'
+
+  train_epochs: 5
+  # If do resampling during data loading or not (could work better for imbalanced datasets)
+  class_imbalance_reweight: True
+  learning_rate: 5.0e-5
+
+  train_batch_size: 32
+  # Val batch size is also used as AL dataloader batch size
+  val_batch_size: 64
+  test_batch_size: 64
+
+  metrics:
+    classification:
+      - 'f1'
+      - 'precision'
+      - 'recall'
+      - 'accuracy'
+    tagging:
+      - 'accuracy'
+      - 'seqeval'
+
+  training_dict_keys:
+    - 'attention_mask'
+    - 'input_ids'
+    - 'labels'
+
+  encoded_input_ids_column_name: 'input_ids'
+
+al:
+  # Whether to run full model training on full dataset before simulating AL
+  full_train: False
+  num_iterations: 10
+
+  init_dataset_size: 32
+  add_dataset_size: 32
+
+
+
+  metrics_to_use_average_in:
+    - 'f1'
+    - 'precision'
+    - 'recall'
+
+  seqeval_name: 'seqeval'
+  default_average_mode: 'weighted'
+
+dataset:
+  name: 'conll2003'
+  load_from_hub: False
+  hosted_dataset_default_revision_name: 'master'
+
+  train_dataset_size: 10000
+  val_dataset_size: 1000
+  test_dataset_size: 1000
+  shuffle_datasets: True
+
+  train_file_path: 'data/news/train.csv'
+  val_file_path: 'data/news/val.csv'
+  test_file_path: 'data/news/test.csv'
+  delimiter: ','
+
+  text_column_name: 'text'
+  label_column_name: 'category'
+
+  encoded_labels_column_name: 'labels'
+  # Labels can be a list of tags, that's why it is needed to add this config
+  txt_labels_column_name: 'labels_txt'
+  str_labels_column_name: 'labels_str'
+
+  index_column_name: 'index'
+
+reporting:
+  weights_and_biases_on: False
+  weights_and_biases_key: '6dcdbcb537587c3adf5e7d6f8ece3d9d5223f3ad'
+  weights_and_biases_save_predictions: True
+  weights_and_biases_save_dataset_artifacts: True
+
+  project_name: 'ntu_al'
+
+  full_training_artifacts_name_prefix: 'full_train_'
+
+  init_dataset_artifact_name: 'init_dataset'
+  al_dataset_artifact_name: 'al_dataset'
+  train_dataset_artifact_name: 'train_dataset'
+  eval_table_artifact_name: 'eval_table'
+
+  weights_and_biases_eval_table_columns:
+    - 'seq_i'
+    - 'text'
+    - 'true_label'
+    - 'prediction'
+
+  weights_and_biases_full_train_mean_loss_log_name: 'full_train_mean_loss'
+  weights_and_biases_train_mean_loss_log_name: 'train_mean_loss'
+  weights_and_biases_confusion_matrix_log_name: 'conf_mat'
+  weights_and_biases_test_loss_log_name: 'test_loss'
+  weights_and_biases_test_predictions_table_log_name: 'test_predictions_table'
+
+
+strategies:
+
+  log_output_folder: 'al_strategies_log'

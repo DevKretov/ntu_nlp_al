@@ -1,0 +1,11 @@
+
+load_from_hub: False
+hub_dataset_name: 'name'
+
+train_file_path: 'data/tweets/train.csv'
+val_file_path: 'data/tweets/val.csv'
+test_file_path: 'data/tweets/test.csv'
+delimiter: ','
+
+text_column_name: 'text'
+label_column_name: 'airline_sentiment'
