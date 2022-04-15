@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import json
 
-from _strategy import _Strategy
+from ._strategy import _Strategy
 
 class TaggingLeastConfidence(_Strategy):
     def __init__(self, model, dataloader, dataset_len, device, model_type, threshold = 1.0):

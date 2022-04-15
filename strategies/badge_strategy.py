@@ -14,7 +14,7 @@ from sklearn.metrics import pairwise_distances
 import json
 
 from copy import deepcopy
-from _strategy import _Strategy
+from ._strategy import _Strategy
 
 class BadgeSampling(_Strategy):
     def __init__(self, model, dataloader, dataset_len, device, num_labels, embedding_dim, batch_size, model_type):

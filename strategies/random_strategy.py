@@ -2,7 +2,7 @@ import logging
 logging.basicConfig(format='%(asctime)s %(name)s %(levelname)s:%(message)s', level=logging.DEBUG)
 
 import numpy as np
-from _strategy import _Strategy
+from ._strategy import _Strategy
 
 class RandomStrategy(_Strategy):
 

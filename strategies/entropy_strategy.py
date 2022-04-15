@@ -4,7 +4,7 @@ logging.basicConfig(format='%(asctime)s %(name)s %(levelname)s:%(message)s', lev
 import torch
 import json
 
-from _strategy import _Strategy
+from ._strategy import _Strategy
 
 class EntropySampling(_Strategy):
     def __init__(self, model, dataloader, dataset_len, device, model_type):

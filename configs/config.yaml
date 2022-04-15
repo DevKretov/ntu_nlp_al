@@ -1,6 +1,6 @@
 app:
 
-  debug_mode: True
+  debug_mode: False
   model_classification_name: 'classification'
   model_tagging_name: 'tagging'
 
@@ -66,8 +66,6 @@ al:
   init_dataset_size: 32
   add_dataset_size: 32
 
-
-
   metrics_to_use_average_in:
     - 'f1'
     - 'precision'
@@ -77,22 +75,10 @@ al:
   default_average_mode: 'weighted'
 
 dataset:
-  name: 'conll2003'
-  load_from_hub: False
-  hosted_dataset_default_revision_name: 'master'
-
   train_dataset_size: 10000
   val_dataset_size: 1000
   test_dataset_size: 1000
   shuffle_datasets: True
-
-  train_file_path: 'data/news/train.csv'
-  val_file_path: 'data/news/val.csv'
-  test_file_path: 'data/news/test.csv'
-  delimiter: ','
-
-  text_column_name: 'text'
-  label_column_name: 'category'
 
   encoded_labels_column_name: 'labels'
   # Labels can be a list of tags, that's why it is needed to add this config

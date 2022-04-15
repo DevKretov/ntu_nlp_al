@@ -7,7 +7,7 @@ import tqdm
 import sys
 from sklearn.cluster import KMeans
 
-from _strategy import _Strategy
+from ._strategy import _Strategy
 
 class KMeansSampling(_Strategy):
 
