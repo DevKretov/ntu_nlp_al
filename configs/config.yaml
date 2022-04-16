@@ -5,7 +5,8 @@ app:
   model_tagging_name: 'tagging'
 
   #selected_dataset: 'csob_classification'
-  selected_dataset: 'conll2003_tagging'
+  #selected_dataset: 'conll2003_tagging'
+  selected_dataset: 'news_classification'
 
   strategy: 'least_confidence'
 
@@ -29,7 +30,7 @@ model:
   use_gpu: True
 
   pretrained_model_name: 'prajjwal1/bert-tiny'
-  finetuned_model_type: 'tagging'
+  finetuned_model_type: 'classification'
 
   train_epochs: 5
   # If do resampling during data loading or not (could work better for imbalanced datasets)
@@ -61,7 +62,7 @@ model:
 al:
   # Whether to run full model training on full dataset before simulating AL
   full_train: False
-  num_iterations: 10
+  num_iterations: 100
 
   init_dataset_size: 32
   add_dataset_size: 32
@@ -88,7 +89,7 @@ dataset:
   index_column_name: 'index'
 
 reporting:
-  weights_and_biases_on: False
+  weights_and_biases_on: True
   weights_and_biases_key: '6dcdbcb537587c3adf5e7d6f8ece3d9d5223f3ad'
   weights_and_biases_save_predictions: True
   weights_and_biases_save_dataset_artifacts: True

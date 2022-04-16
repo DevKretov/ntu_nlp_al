@@ -478,7 +478,7 @@ class ALTrainer:
         )
 
         if self.wandb_on:
-            wandb.log(self.wandb_log_data_dict)
+            wandb.log(self.wandb_log_data_dict, step_i=al_iteration, commit=True)
 
 
 
@@ -711,7 +711,7 @@ class ALTrainer:
                 if al_iteration == -1:
                     new_eval_result = dict()
                     for key, value in eval_result.items():
-                        eval_result[
+                        new_eval_result[
                             config['reporting']['full_training_artifacts_name_prefix'] + key
                         ] = value
 

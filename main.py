@@ -192,7 +192,7 @@ if __name__ == '__main__':
         run = wandb.init(
             name=weights_and_biases_run_name,
             project=config['reporting']['project_name'],
-            reinit=True
+         #   reinit=True
         )
 
         wandb.config.update(config)
