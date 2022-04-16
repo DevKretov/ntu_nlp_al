@@ -478,7 +478,7 @@ class ALTrainer:
         )
 
         if self.wandb_on:
-            wandb.log(self.wandb_log_data_dict, step_i=al_iteration, commit=True)
+            wandb.log(self.wandb_log_data_dict, step=al_iteration, commit=True)
 
 
 
