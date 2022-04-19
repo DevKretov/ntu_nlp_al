@@ -1,7 +1,7 @@
 import time
 import tqdm #import tqdm
 import logging
-logging.basicConfig(format='%(asctime)s %(name)s %(levelname)s:%(message)s', level=logging.DEBUG)
+logging.basicConfig(format='%(asctime)s %(name)s %(levelname)s:%(message)s', level=logging.INFO)
 
 from pathlib import Path
 import torch
@@ -61,6 +61,11 @@ class ALTrainer:
 
         self.wandb_log_data_dict = dict()
 
+        self.al_strategy_metrics = []
+        self.full_training_metrics = {}
+
+        self.best_metric_score = 0
+
     def set_model(self, model):
         self.model = model
 
@@ -109,7 +114,8 @@ class ALTrainer:
             train_batch_size = 32,
             val_batch_size = 64,
             test_batch_size = 64,
-            debug = False
+            debug = False,
+            save_model_path=''
     ):
 
         logging.info(f'Full training initialized!')
@@ -138,7 +144,8 @@ class ALTrainer:
         self.train_model(
             epochs=train_epochs,
             steps_per_epoch=steps_per_epoch,
-            evaluation_steps_num=evaluation_steps
+            evaluation_steps_num=evaluation_steps,
+            save_model_path=save_model_path
         )
 
         logging.info(f'\nFull training finished')
@@ -230,7 +237,8 @@ class ALTrainer:
             train_batch_size = 32,
             val_batch_size = 64,
             test_batch_size = 64,
-            debug = False
+            debug = False,
+            save_model_path = ''
     ):
 
         logging.info(f'Training initialized!')
@@ -247,6 +255,9 @@ class ALTrainer:
             imbalanced_training=self.imbalanced_training,
             al=True
         )
+
+        self.al_strategy_metrics = []
+        self.best_metric_score = 0
 
         al_dataset_add_artifact = None
         train_dataset_artifact = None
@@ -274,19 +285,21 @@ class ALTrainer:
             al_iterations = 5
 
         for al_iteration in range(al_iterations):
-            self.wandb_log_data_dict = dict()
-
             logging.info(f'\n===========================================================')
             logging.info(f'\nAL iteration {(al_iteration + 1):3}/{al_iterations}')
             logging.info(f'Training is run on {len(self.dataset.train_dataloader)} batches!')
             logging.info(f'Evaluation is run on {len(self.dataset.val_dataloader)} batches!')
             logging.info(f'Testing is run on {len(self.dataset.test_dataloader)} batches!')
 
+            self.wandb_log_data_dict = dict()
+            self.al_strategy_metrics.append(dict())
+
             self.train_model(
                 epochs=train_epochs,
                 steps_per_epoch=steps_per_epoch,
                 evaluation_steps_num=evaluation_steps,
-                al_iteration=al_iteration
+                al_iteration=al_iteration,
+                save_model_path=save_model_path,
             )
 
             logging.debug(f'Model training finished! Running AL strategy...')
@@ -365,7 +378,8 @@ class ALTrainer:
             epochs,
             steps_per_epoch = -1,
             evaluation_steps_num = -1,
-            al_iteration = -1
+            al_iteration = -1,
+            save_model_path=''
     ):
         '''
 
@@ -466,6 +480,7 @@ class ALTrainer:
             mode=config['app']['eval_mode'],
             al_iteration=al_iteration,
             epoch=epoch_i,
+            save_model_path=save_model_path
         )
 
         logging.info(f'Test set evaluation:')
@@ -489,7 +504,8 @@ class ALTrainer:
             print_metrics = False,
             mode = config['app']['eval_mode'],
             al_iteration = -1,
-            epoch = 0
+            epoch = 0,
+            save_model_path=''
     ):
 
         model = self.model.model
@@ -629,18 +645,19 @@ class ALTrainer:
             if batch_i == num_batches_to_eval:
                 break
 
+
+
+        #if self.model_type != 'tagging':
+        return_labels = lambda _int: self.dataset.int_2_labels[_int]
+        return_labels = np.vectorize(return_labels)
+        labels_all = labels_all.astype(np.int32)
+        predictions_all = predictions_all.astype(np.int32)
+
+        labels_all = np.where(labels_all == -100, 0, labels_all)
+        labels_all_lst = return_labels(labels_all)
+        predictions_all_lst = return_labels(predictions_all)
+
         if print_metrics:
-
-            #if self.model_type != 'tagging':
-            return_labels = lambda _int: self.dataset.int_2_labels[_int]
-            return_labels = np.vectorize(return_labels)
-            labels_all = labels_all.astype(np.int32)
-            predictions_all = predictions_all.astype(np.int32)
-
-            labels_all = np.where(labels_all == -100, 0, labels_all)
-            labels_all_lst = return_labels(labels_all)
-            predictions_all_lst = return_labels(predictions_all)
-
             logging.info(f'\nMetrics, confusion matrix')
 
             # Categories: {'alt': 0, 'comp': 1, 'misc': 2, 'rec': 3, 'sci': 4, 'soc': 5, 'talk': 6}
@@ -653,36 +670,44 @@ class ALTrainer:
                 )
 
             conf_matrix = confusion_matrix(labels_all_lst, predictions_all_lst, labels=self.dataset.int_2_labels)
+
             logging.info(f'\n{conf_matrix}')
 
-            for metric in self.metrics:
-                if metric.name in self.METRICS_TO_USE_AVEGARE_IN:
-                    if set(labels_all_lst) - set(predictions_all_lst):
-                        logging.warning(f'There is label not found in predictions: {set(labels_all_lst) - set(predictions_all_lst)}')
-                        logging.warning(f'Printing metric without this label')
+        for metric in self.metrics:
+            if metric.name in self.METRICS_TO_USE_AVEGARE_IN:
+                if set(labels_all_lst) - set(predictions_all_lst):
+                   # logging.warning(f'There is label not found in predictions: {set(labels_all_lst) - set(predictions_all_lst)}')
+                   # logging.warning(f'Printing metric without this label')
 
-                        result = metric.compute(average=self.DEFAULT_AVERAGE_MODE, labels=np.unique(predictions_all))
+                    result = metric.compute(average=self.DEFAULT_AVERAGE_MODE, labels=np.unique(predictions_all))
+                else:
+                    result = metric.compute(average=self.DEFAULT_AVERAGE_MODE)
+            else:
+                result = metric.compute()
+
+            if metric.name == config['al']['seqeval_name']:
+                for key in result.keys():
+                    final_key = metric.name + '_' + key
+                    if isinstance(result[key], dict):
+                        for _key, value in result[key].items():
+                            final_key = key + '_' + _key
+                            eval_result[final_key] = value
                     else:
-                        result = metric.compute(average=self.DEFAULT_AVERAGE_MODE)
+                        eval_result[final_key] = result[key]
+
+                    # if key.startswith('overall'):
+                    #     eval_result[metric.name + '_' + key] = result[key]
+            else:
+                eval_result[metric.name] = result[metric.name]
+
+            if print_metrics: logging.info(f'{eval_result}')
+
+            if mode == config['app']['test_mode']:
+                if al_iteration == -1:
+                    self.full_training_metrics.update(result)
                 else:
-                    result = metric.compute()
+                    self.al_strategy_metrics[-1].update(result)
 
-                if metric.name == config['al']['seqeval_name']:
-                    for key in result.keys():
-                        final_key = metric.name + '_' + key
-                        if isinstance(result[key], dict):
-                            for _key, value in result[key].items():
-                                final_key = metric.name + '_' + key + '_' + _key
-                                eval_result[final_key] = value
-                        else:
-                            eval_result[final_key] = result[key]
-
-                        # if key.startswith('overall'):
-                        #     eval_result[metric.name + '_' + key] = result[key]
-                else:
-                    eval_result[metric.name] = result[metric.name]
-
-                logging.info(f'{eval_result}')
 
         if mode == config['app']['test_mode']:
             eval_result[
@@ -722,5 +747,17 @@ class ALTrainer:
 
                 if self.wandb_table is not None:
                     self.wandb_table = wandb.Table(columns=self.wandb_table.columns)
+        else:
+            metric_name = config['model']['save_dev_model_metric']
+            metric_value = eval_result[metric_name]
+
+            if self.best_metric_score < metric_value:
+                if al_iteration == -1:
+                    self.model.save_model(save_model_path + '_full_train')
+                else:
+                    self.model.save_model(save_model_path)
+
+                logging.info(f'Previous best {metric_name} score = {self.best_metric_score}, now = {metric_value}. Best model saved!')
+                self.best_metric_score = metric_value
 
         print()

@@ -1,4 +1,5 @@
 import logging
+logging.basicConfig(format='%(asctime)s %(name)s %(levelname)s:%(message)s', level=logging.INFO)
 
 import torch
 from transformers import get_scheduler
@@ -7,6 +8,7 @@ from datasets import list_metrics, load_metric
 from active_learning_trainer import ALTrainer
 from transformers import AutoTokenizer
 from dataset import ClassificationDataset, TokenClassificationDataset
+from utils import TrainingVisualisation
 from model import Model
 import pandas as pd
 
@@ -32,104 +34,39 @@ if __name__ == '__main__':
 
     dataset_config = yaml.safe_load(
         open(
-            CONFIGS_FOLDER_PATH / (config['app']['selected_dataset'] + '.yaml')
+            CONFIGS_FOLDER_PATH / (config['run']['selected_dataset'] + '.yaml')
         )
     )
 
-    # parameters = dict()
-    # parameters['use_gpu'] = True
-    #
-    # parameters['weights_and_biases_on'] = False
-    # parameters['weights_and_biases_key'] = '6dcdbcb537587c3adf5e7d6f8ece3d9d5223f3ad'
-
     current_timestamp = str(datetime.datetime.now()).split('.')[0]
-    #
-    # parameters['weights_and_biases_save_predictions'] = True
-    # parameters['weights_and_biases_save_dataset_artifacts'] = True
-    #
-    # parameters['pretrained_model_name'] = 'prajjwal1/bert-tiny' #'distilbert-base-uncased'
-
-
-    # parameters['train_dataset_file_path'] = 'data/imdb/train_IMDB.csv'
-    # parameters['val_dataset_file_path'] = 'data/imdb/test_IMDB.csv'
-    # parameters['test_dataset_file_path'] = 'data/imdb/test_IMDB.csv'
-
-    # parameters['dataset_from_datasets_hub'] = True
-    # parameters['dataset_from_datasets_hub_name'] = 'conll2003'
-    # parameters['train_dataset_file_path'] = 'data/news/train.csv'
-    # parameters['val_dataset_file_path'] = 'data/news/val.csv'
-    # parameters['test_dataset_file_path'] = 'data/news/test.csv'
-    # parameters['dataset_file_delimiter'] = ','
-    #
-    # parameters['dataset_text_column_name'] =  'tokens' #'text'
-    # parameters['dataset_label_column_name'] = 'ner_tags'#'airline_sentiment'
-
-    # parameters['train_dataset_file_path'] = 'data/csob/train.csv'
-    # parameters['val_dataset_file_path'] = 'data/csob/val.csv'
-    # parameters['test_dataset_file_path'] = 'data/csob/test.csv'
-    # parameters['dataset_file_delimiter'] = ','
-    #
-    # ### FIRST IS FOR TAGGING
-    # parameters['dataset_text_column_name'] = 'text'  # 'text'
-    # parameters['dataset_label_column_name'] = 'category'  # 'airline_sentiment'
-    #
-    #
-    # parameters['dataset_text_column_name'] = 'text_cleaned'  # 'text'
-    # parameters['dataset_label_column_name'] = 'label_reduced'  # 'airline_sentiment'
-
-    # # TODO: implement different loss functions in training
-    # parameters['loss'] = 'cross_entropy'
-    # parameters['loss_weighted'] = False
-    #
-    # parameters['class_imbalance_reweight'] = True
-    # parameters['train_batch_size'] = 32
-    # parameters['val_batch_size'] = 64
-    # parameters['test_batch_size'] = 64
-    # parameters['epochs'] = 5
-    # parameters['finetuned_model_type'] = 'classification'
-    # parameters['finetuned_model_type'] = 'tagging'
-    # model_type = parameters['finetuned_model_type']
-    #
-    #
-    # parameters['al_iterations'] = 10
-    # parameters['init_dataset_size'] = 32
-    # parameters['add_dataset_size'] = 32
-    # #parameters['al_strategy'] = 'random' #'least_confidence'
-    # parameters['al_strategy'] = 'least_confidence' #'least_confidence'
-    # parameters['full_train'] = False
-    #
-    # parameters['debug'] = True
-
-
 
     device = 'cpu'
     if config['model']['use_gpu']:
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-    weights_and_biases_run_name = f'''{current_timestamp}_run_{config['model']['finetuned_model_type']}_{device}'''
+    weights_and_biases_run_name = f'''{current_timestamp}_run_{config['run']['finetuned_model_type']}_{device}'''
     if config['app']['debug_mode']:
         weights_and_biases_run_name = 'DEBUG_' + weights_and_biases_run_name
 
     logging.info(f'Device set to {device}!')
 
-
     ### Preparing data
     tokenizer = AutoTokenizer.from_pretrained(
-        config['model']['pretrained_model_name']
+        config['run']['pretrained_model_name']
     )
 
     dataset_obj = None
-    if config['model']['finetuned_model_type'] == config['app']['model_classification_name']:
+    if config['run']['finetuned_model_type'] == config['app']['model_classification_name']:
         dataset_obj = ClassificationDataset(tokenizer)
-    elif config['model']['finetuned_model_type'] == config['app']['model_tagging_name']:
+    elif config['run']['finetuned_model_type'] == config['app']['model_tagging_name']:
         dataset_obj = TokenClassificationDataset(tokenizer)
     else:
-        raise NotImplementedError(f'''Type {config['model']['finetuned_model_type']} not supported yet!''')
+        raise NotImplementedError(f'''Type {config['run']['finetuned_model_type']} not supported yet!''')
 
     if dataset_config['load_from_hub']:
         dataset_name = dataset_config['hub_dataset_name']
         #dataset_name = parameters['dataset_from_datasets_hub_name']
-        dataset_obj.load_hosted_dataset(dataset_name)
+        dataset_obj.load_hosted_dataset(dataset_name, revision=dataset_config['revision'])
     else:
         data_files = {
             config['app']['dataset_train_key']: [dataset_config['train_file_path']],
@@ -165,7 +102,7 @@ if __name__ == '__main__':
 
     ### Prepare W&B structure for saving predictions
     wandb_table = None
-    if config['reporting']['weights_and_biases_on'] and \
+    if config['run']['weights_and_biases_on'] and \
         config['reporting']['weights_and_biases_save_predictions']:
 
         categories = sorted(list(dataset_obj.get_all_categories().items()), key=lambda key: key[1])
@@ -177,8 +114,8 @@ if __name__ == '__main__':
     num_labels = dataset_obj.get_num_categories()
 
     model = Model(
-        config['model']['pretrained_model_name'],
-        model_type=config['model']['finetuned_model_type'],
+        config['run']['pretrained_model_name'],
+        model_type=config['run']['finetuned_model_type'],
         num_labels=num_labels
     )
 
@@ -187,7 +124,7 @@ if __name__ == '__main__':
     this_run_folder_path = LOCAL_RUNS_FOLDER_PATH / weights_and_biases_run_name
     this_run_folder_path.mkdir(exist_ok=True, parents=True)
 
-    if config['reporting']['weights_and_biases_on']:
+    if config['run']['weights_and_biases_on']:
         wandb.login(key=config['reporting']['weights_and_biases_key'])
         run = wandb.init(
             name=weights_and_biases_run_name,
@@ -215,9 +152,9 @@ if __name__ == '__main__':
         run.log_artifact(artifact)
 
     trainer = ALTrainer(
-        wandb_on=config['reporting']['weights_and_biases_on'],
-        imbalanced_training=config['model']['class_imbalance_reweight'],
-        model_type=config['model']['finetuned_model_type'],
+        wandb_on=config['run']['weights_and_biases_on'],
+        imbalanced_training=config['run']['class_imbalance_reweight'],
+        model_type=config['run']['finetuned_model_type'],
         wandb_run=run,
         wandb_table=wandb_table,
         wandb_save_datasets_artifacts=config['reporting']['weights_and_biases_save_dataset_artifacts']
@@ -254,34 +191,58 @@ if __name__ == '__main__':
     trainer.add_evaluation_metric(load_metric('accuracy'))
 
     metrics_list = []
-    if config['model']['finetuned_model_type'] == config['app']['model_tagging_name']:
+    if config['run']['finetuned_model_type'] == config['app']['model_tagging_name']:
         metrics_list = config['model']['metrics']['tagging']
-    elif config['model']['finetuned_model_type'] == config['app']['model_classification_name']:
+    elif config['run']['finetuned_model_type'] == config['app']['model_classification_name']:
         metrics_list = config['model']['metrics']['classification']
     else:
-        raise NotImplementedError(f'''There is no such model type implemented like {config['app']['finetuned_model_type']}''')
+        raise NotImplementedError(f'''There is no such model type implemented like {config['run']['finetuned_model_type']}''')
 
     for metric in metrics_list:
         trainer.add_evaluation_metric(load_metric(metric))
 
-    if config['al']['full_train']:
+    if config['run']['visualise_locally']:
+        visualisation = TrainingVisualisation()
+
+    if config['run']['full_train']:
         trainer.full_train(
             train_epochs=config['model']['train_epochs'],
             train_batch_size=config['model']['train_batch_size'],
             val_batch_size=config['model']['val_batch_size'],
             test_batch_size=config['model']['test_batch_size'],
-            debug=config['app']['debug_mode']
+            debug=config['app']['debug_mode'],
+            save_model_path=str(this_run_folder_path / 'dev_models')
         )
 
-    trainer.al_train(
-        al_iterations=config['al']['num_iterations'],
-        init_dataset_size=config['al']['init_dataset_size'],
-        add_dataset_size=config['al']['add_dataset_size'],
-        train_epochs=config['model']['train_epochs'],
-        strategy=config['app']['strategy'],
-        train_batch_size=config['model']['train_batch_size'],
-        val_batch_size=config['model']['val_batch_size'],
-        test_batch_size=config['model']['test_batch_size'],
-        debug=config['app']['debug_mode']
-    )
+        full_training_metrics = trainer.full_training_metrics
+        if config['run']['visualise_locally']:
+            visualisation.add_full_training_metrics(full_training_metrics)
+
+    strategies = config['run']['strategies']
+    implemented_strategies_list = list(config['app']['strategies'].keys())
+    for strategy in strategies:
+        if strategy not in implemented_strategies_list:
+            logging.warning(f'Strategy {strategy} not found in implemented strategies list: {implemented_strategies_list}. Skipping.')
+            continue
+
+        trainer.al_train(
+            al_iterations=config['al']['num_iterations'],
+            init_dataset_size=config['al']['init_dataset_size'],
+            add_dataset_size=config['al']['add_dataset_size'],
+            train_epochs=config['model']['train_epochs'],
+            strategy=strategy,
+            train_batch_size=config['model']['train_batch_size'],
+            val_batch_size=config['model']['val_batch_size'],
+            test_batch_size=config['model']['test_batch_size'],
+            debug=config['app']['debug_mode'],
+            save_model_path=str(this_run_folder_path / 'dev_models'),
+        )
+
+        al_strategy_metrics = trainer.al_strategy_metrics
+
+        if config['run']['visualise_locally']:
+            visualisation.add_al_strategy_metrics(al_strategy_metrics, strategy)
+
+    if config['run']['visualise_locally']:
+        visualisation.visualise(save_fig_path=config['run']['visualisation_save_path'])
 

@@ -11,7 +11,7 @@ from scipy.special import softmax
 # from seqeval.metrics import accuracy_score
 # from seqeval.metrics import classification_report
 # from seqeval.metrics import f1_score
-
+from pathlib import Path
 from sklearn.model_selection import train_test_split
 
 import json
@@ -74,6 +74,13 @@ class Model:
                 num_labels=num_labels
             )
 
+
+    def save_model(self, save_model_dir_path = ''):
+        save_path = Path(save_model_dir_path)
+        if not save_path.is_dir():
+            save_path.mkdir(parents=True, exist_ok=True)
+
+        self.model.save_pretrained(save_model_dir_path)
 
     def compile_model(self, optimizer = None, loss = None, metrics = None):
         # TODO assert their classes to corresponding packages

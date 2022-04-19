@@ -1,14 +1,41 @@
-app:
+run:
+  # Here are the main parameters that you will definitely adjust to your needs
 
+  # List all strategies you want to try out for your experiment
+  # All names have to correspond to those in app.strategies dictionary in config
+  strategies:
+    - random
+
+  # The name of the model you want transformers to load.
+  # Can be from the local repository (file system) or from
+  # HuggingFace's model hub: https://huggingface.co/models
+  pretrained_model_name: 'prajjwal1/bert-tiny'
+  # Select the model type you want to fine-tune. Now only 'classification' and 'tagging' available
+  finetuned_model_type: 'classification'
+  # If you train with imbalanced classes, this option can be helpful
+  # It makes training more balanced by weighted sampling basing on
+  # classes' inverse proportion
+  class_imbalance_reweight: False
+
+  # If you experiment in order to find the best strategy,
+  # you might have some large labelled dataset. You can train a full
+  # model on all data in order to see "maximum" capabilities of the model
+  full_train: False
+  # Please write the config name of the dataset config .YAML file
+  # in order to read data from it
+  selected_dataset: 'news_classification'
+ # selected_dataset: 'conll2003_tagging'
+
+  visualise_locally: False
+  visualisation_save_path: 'visualisations/al_strategies_performance.png'
+
+  weights_and_biases_on: False
+
+app:
   debug_mode: False
+
   model_classification_name: 'classification'
   model_tagging_name: 'tagging'
-
-  #selected_dataset: 'csob_classification'
-  #selected_dataset: 'conll2003_tagging'
-  selected_dataset: 'news_classification'
-
-  strategy: 'least_confidence'
 
   strategies:
     random: 'random'
@@ -26,13 +53,10 @@ app:
   dataset_test_key: 'test'
 
 model:
-
   use_gpu: True
 
-  pretrained_model_name: 'prajjwal1/bert-tiny'
-  finetuned_model_type: 'classification'
-
   train_epochs: 5
+  save_dev_model_metric: 'f1'
   # If do resampling during data loading or not (could work better for imbalanced datasets)
   class_imbalance_reweight: True
   learning_rate: 5.0e-5
@@ -89,7 +113,7 @@ dataset:
   index_column_name: 'index'
 
 reporting:
-  weights_and_biases_on: True
+
   weights_and_biases_key: '6dcdbcb537587c3adf5e7d6f8ece3d9d5223f3ad'
   weights_and_biases_save_predictions: True
   weights_and_biases_save_dataset_artifacts: True
@@ -114,6 +138,30 @@ reporting:
   weights_and_biases_confusion_matrix_log_name: 'conf_mat'
   weights_and_biases_test_loss_log_name: 'test_loss'
   weights_and_biases_test_predictions_table_log_name: 'test_predictions_table'
+
+visualisation:
+  classification_metrics:
+    - accuracy
+    - precision
+    - recall
+    - f1
+
+  tagging_metrics:
+    - overall_accuracy
+    - overall_precision
+    - overall_recall
+    - overall_f1
+
+  metrics_names:
+    accuracy: 'Accuracy'
+    precision: 'Precision'
+    recall: 'Recall'
+    f1: 'F1'
+
+    overall_accuracy: 'Overall accuracy'
+    overall_precision: 'Overall precision'
+    overall_recall: 'Overall recall'
+    overall_f1: 'Overall F1'
 
 
 strategies:
