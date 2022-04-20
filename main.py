@@ -174,7 +174,7 @@ if __name__ == '__main__':
         model.model.parameters(),
         lr=config['model']['learning_rate']
     )
-    trainer.set_optimizer(optimizer)
+    trainer.set_optimizer(optimizer, init_lr = config['model']['learning_rate'])
 
     num_training_steps = config['model']['train_epochs'] * trainer.get_training_steps_num()
 

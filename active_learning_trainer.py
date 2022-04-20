@@ -66,6 +66,8 @@ class ALTrainer:
 
         self.best_metric_score = 0
 
+        self.init_lr = None
+
     def set_model(self, model):
         self.model = model
 
@@ -80,8 +82,10 @@ class ALTrainer:
         self.criterion = criterion
         pass
 
-    def set_optimizer(self, optimizer:torch.optim.Optimizer):
+    def set_optimizer(self, optimizer:torch.optim.Optimizer, init_lr=None):
         self.optimizer = optimizer
+        if init_lr:
+            self.init_lr = init_lr
 
     # TODO: solve this issue and return LR scheduler back to training pipeline
     def set_lr_scheduler(self, scheduler, warmup_steps = 0):
@@ -402,7 +406,11 @@ class ALTrainer:
         if self.device != 'cpu':
             torch.cuda.empty_cache()
 
-        optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
+        if self.init_lr:
+            optimizer = torch.optim.AdamW(model.parameters(), lr=self.init_lr)
+        else:
+            optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
+
         self.set_optimizer(optimizer)
         logging.info(f'Model initialized.')
 
