@@ -261,7 +261,10 @@ class ALTrainer:
         )
 
         self.al_strategy_metrics = []
-        self.best_metric_score = 0
+
+        # Comment this out if you want to reset this metric score each time you run
+        #   new AL experiment
+        #self.best_metric_score = 0
 
         al_dataset_add_artifact = None
         train_dataset_artifact = None

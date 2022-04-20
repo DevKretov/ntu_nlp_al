@@ -34,4 +34,16 @@ The experimenting is also design in the way that utilises GPU. If you have one, 
 
 If you want to simply debug the pipeline, set app.debug_mode parameter to False.
 
-Otherwise, make sure that you meet all criteria from requirements.txt file. You will need to have transformers, datasets, torch, seqeval, wandb
+Otherwise, make sure that you meet all criteria from requirements.txt file. You will need to have transformers, datasets, torch, seqeval, wandb, sklearn, tqdm.
+
+We have tested the library in Colab. For Colab, please ensure you have everything from requirements.txt installed.
+
+We also tested the library on the M1 Macbook Air. We provide requirements_m1.txt with M1 modules. Bear in mind that Tensorflow/Pytorch have to be installed via conda. Refer to these tutorials for that:
+
+   For tensorflow: https://caffeinedev.medium.com/how-to-install-tensorflow-on-m1-mac-8e9b91d93706
+   For pytorch: https://betterprogramming.pub/how-to-install-pytorch-on-apple-m1-series-512b3ad9bc6
+
+
+If you want to test it seemlessly, just run Colab notebook provided: AL_Experiments.ipynb.
+
+The expected output is the finished run in Weights & Biases and locally saved best model among all those that we trained on every strategy you select. You also might want to visualise AL iterations locally, we have implemented simple plotting for comparison, but we strongly suggest using Weights&Biases, because they have implemented everything for us and they track everything for us. It's much more convenient to analyse the outputs there.

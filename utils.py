@@ -22,7 +22,9 @@ class TrainingVisualisation:
         # plots to compare the performance of strategies and the full dataset
         self.num_cols = 2
         self.num_rows = 2
-        self.fig, self.axs = plt.subplots(self.num_rows, self.num_cols)
+        plt.rcParams.update({'font.size': 25})
+        plt.rcParams['figure.facecolor'] = 'white'
+        self.fig, self.axs = plt.subplots(self.num_rows, self.num_cols, figsize=(30,20), dpi=50)
 
         self.max_iterations_range = 0
 
@@ -60,7 +62,7 @@ class TrainingVisualisation:
     def add_full_training_metrics(self, full_training_metrics):
         self.fig.suptitle(
             'Comparison of different AL strategies and the performance of the full dataset',
-            fontsize=14
+            fontsize=35
         )
 
         axs = self.axs
@@ -88,7 +90,7 @@ class TrainingVisualisation:
 
 
     def add_al_strategy_metrics(self, al_iteration_metrics, strategy):
-        self.fig.suptitle('Comparison of different AL strategies', fontsize=14)
+        self.fig.suptitle('Comparison of different AL strategies', fontsize=35)
         axs = self.axs
 
         if strategy == 'random':
