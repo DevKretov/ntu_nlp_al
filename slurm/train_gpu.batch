@@ -1,0 +1,22 @@
+#!/bin/bash
+#SBATCH --time=24:00:00
+#SBATCH --nodes=1 --ntasks-per-node=1 --cpus-per-task=4
+#SBATCH --partition=gpu --gres=gpu:1
+#SBATCH --mem=96G
+#SBATCH --out=../logs/train_nli.%j.out
+
+# if PROJECT_DIR is not defined, then expect we are in ${PROJECT_DIR}/slurm
+if [[ -z "${PROJECT_DIR}" ]]; then
+    export PROJECT_DIR="$(dirname "$(pwd)")"
+fi
+
+#if [ -f "${PROJECT_DIR}/init_environment.sh" ]; then
+#    source "${PROJECT_DIR}/init_environment.sh"
+#fi
+#
+#cd ${PROJECT_DIR}
+
+export PYTHONPATH=src:$PYTHONPATH
+
+# deepspeed src/train_nli.py --deepspeed cfg/ds_config_zero2.json
+python active_learning_trainer.py
