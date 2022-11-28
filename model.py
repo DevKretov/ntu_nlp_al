@@ -6,6 +6,8 @@ import pickle
 # import seqeval
 import time
 import csv
+import torch
+import torch.nn.functional as F
 from scipy.special import softmax
 
 # from seqeval.metrics import accuracy_score
@@ -25,6 +27,8 @@ from transformers import ElectraTokenizerFast, ElectraConfig, ElectraModel, TFEl
 
 
 from transformers import TFAutoModelForSequenceClassification, AutoTokenizer
+
+
 from transformers import BertConfig, PretrainedConfig
 from transformers import BertTokenizerFast
 
@@ -36,7 +40,7 @@ class Model:
     TAGGING_MODEL_TYPE = 'tagging'
 
     # Model type can be classification or tagging
-    def __init__(self, model_name, model_type, config=None, num_labels = None):
+    def __init__(self, model_name, model_type, config=None, num_labels = None, from_tf=False):
         if not isinstance(config, PretrainedConfig):
             config = None
 
@@ -47,9 +51,9 @@ class Model:
         self.model_type = model_type
         self.num_labels = num_labels
 
-        self.reinit_model(model_name, config, num_labels)
+        self.reinit_model(model_name, config, num_labels, from_tf)
 
-    def reinit_model(self, model_name = None, config = None, num_labels = None):
+    def reinit_model(self, model_name = None, config = None, num_labels = None, from_tf=False):
         if model_name is None:
             model_name = self.model_name
 
@@ -65,15 +69,44 @@ class Model:
             self.model = AutoModelForSequenceClassification.from_pretrained(
                 model_name,
                 config=config,
-                num_labels=num_labels
+                from_tf=from_tf
+             #   num_labels=num_labels
             )
         elif self.model_type == self.TAGGING_MODEL_TYPE:
             self.model = AutoModelForTokenClassification.from_pretrained(
                 model_name,
                 config=config,
-                num_labels=num_labels
+                from_tf=from_tf
+             #   num_labels=num_labels
             )
 
+
+    def set_tokenizer(self, tokenizer):
+        self.tokenizer = tokenizer
+
+    def classify_text(self, input_text, max_length = 128, truncation=True):
+
+        self.model.eval()
+        next_batch = self.tokenizer(
+            input_text,
+            max_length=max_length,
+            truncation=truncation,
+            padding='max_length',
+            return_tensors='pt'
+        )
+
+      #  next_batch = {k: v.to(self.device) for k, v in next_batch.items()}
+        with torch.no_grad():
+            outputs = self.model(**next_batch)
+        loss = outputs.loss
+
+        logits = outputs.logits
+        predictions = torch.argmax(logits, dim=-1)
+
+        probs = F.softmax(logits, dim=-1)
+        probs = probs.data.cpu().numpy()
+
+        pass
 
     def save_model(self, save_model_dir_path = ''):
         save_path = Path(save_model_dir_path)

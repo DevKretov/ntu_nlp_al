@@ -20,19 +20,19 @@ run:
   # If you experiment in order to find the best strategy,
   # you might have some large labelled dataset. You can train a full
   # model on all data in order to see "maximum" capabilities of the model
-  full_train: False
+  full_train: True
   # Please write the config name of the dataset config .YAML file
   # in order to read data from it
   selected_dataset: 'news_classification'
  # selected_dataset: 'conll2003_tagging'
 
-  visualise_locally: False
+  visualise_locally: True
   visualisation_save_path: 'visualisations/al_strategies_performance.png'
 
   weights_and_biases_on: False
 
 app:
-  debug_mode: False
+  debug_mode: True
 
   model_classification_name: 'classification'
   model_tagging_name: 'tagging'
