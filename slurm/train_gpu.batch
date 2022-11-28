@@ -27,4 +27,4 @@ source venv_2/bin/activate
 #export PYTHONPATH=src:$PYTHONPATH
 
 # deepspeed src/train_nli.py --deepspeed cfg/ds_config_zero2.json
-python active_learning_trainer.py
+python main.py
