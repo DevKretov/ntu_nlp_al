@@ -4,6 +4,8 @@
 #SBATCH --partition=gpu --gres=gpu:1
 #SBATCH --mem=96G
 #SBATCH --out=../logs/train_nli.%j.out
+#SBATCH --error=../logs/translate_snli.%j.err
+
 
 # if PROJECT_DIR is not defined, then expect we are in ${PROJECT_DIR}/slurm
 if [[ -z "${PROJECT_DIR}" ]]; then
@@ -16,7 +18,13 @@ fi
 #
 #cd ${PROJECT_DIR}
 
-export PYTHONPATH=src:$PYTHONPATH
+module load OpenBLAS/0.3.20-GCC-11.3.0
+ml PyTorch/1.10.0-foss-2021a-CUDA-11.3.1
+
+cd ..
+source ../venv_2/bin/activate
+
+#export PYTHONPATH=src:$PYTHONPATH
 
 # deepspeed src/train_nli.py --deepspeed cfg/ds_config_zero2.json
 python active_learning_trainer.py
