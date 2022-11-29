@@ -3,8 +3,8 @@
 #SBATCH --nodes=1 --ntasks-per-node=1 --cpus-per-task=4
 #SBATCH --partition=gpu --gres=gpu:1
 #SBATCH --mem=96G
-#SBATCH --out=../logs/train_nli.%j.out
-#SBATCH --error=../logs/translate_snli.%j.err
+#SBATCH --out=../logs/bert-base-full-experiment.%j.out
+#SBATCH --error=../logs/bert-base-full-experiment.%j.err
 
 
 # if PROJECT_DIR is not defined, then expect we are in ${PROJECT_DIR}/slurm

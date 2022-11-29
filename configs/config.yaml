@@ -85,7 +85,7 @@ model:
 
 al:
   # Whether to run full model training on full dataset before simulating AL
-  full_train: False
+  full_train: True
   num_iterations: 100
 
   init_dataset_size: 32
