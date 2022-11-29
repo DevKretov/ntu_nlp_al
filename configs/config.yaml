@@ -5,6 +5,10 @@ run:
   # All names have to correspond to those in app.strategies dictionary in config
   strategies:
     - random
+    - least_confidence
+    - badge
+    - entropy
+    - kmeans
 
   # The name of the model you want transformers to load.
   # Can be from the local repository (file system) or from
@@ -20,7 +24,7 @@ run:
   # If you experiment in order to find the best strategy,
   # you might have some large labelled dataset. You can train a full
   # model on all data in order to see "maximum" capabilities of the model
-  full_train: False
+  full_train: True
   # Please write the config name of the dataset config .YAML file
   # in order to read data from it
   selected_dataset: 'news_classification'
