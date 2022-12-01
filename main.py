@@ -17,6 +17,7 @@ import wandb
 from pathlib import Path
 import json
 import yaml
+import argparse
 
 LOCAL_RUNS_FOLDER = 'runs'
 LOCAL_RUNS_FOLDER_PATH = Path(LOCAL_RUNS_FOLDER)
@@ -27,16 +28,42 @@ APP_CONFIG_FILE_NAME = 'config.yaml'
 CONFIGS_FOLDER_PATH = Path(__file__).resolve().parent / CONFIGS_FOLDER_NAME
 APP_CONFIG_FILE_NAME = CONFIGS_FOLDER_PATH / APP_CONFIG_FILE_NAME
 
+# TODO: Init wandb run for each strategy
 
 if __name__ == '__main__':
 
     config = yaml.safe_load(open(str(APP_CONFIG_FILE_NAME)))
 
-    dataset_config = yaml.safe_load(
-        open(
-            CONFIGS_FOLDER_PATH / (config['run']['selected_dataset'] + '.yaml')
-        )
+    parser = argparse.ArgumentParser(description=__doc__)
+
+    dataset_path = str(CONFIGS_FOLDER_PATH / (config['run']['selected_dataset'] + '.yaml'))
+    parser.add_argument(
+        "--dataset_path",
+        required=False,
+        default=dataset_path,
+        help = "Location of dataset config file "
     )
+    parser.add_argument(
+        "--run_name_suffix",
+        required=False,
+        help="Suffix for run name"
+    )
+    parser.add_argument(
+        "--al_strategy",
+        required=False,
+        help="Specify one strategy to override those in config. But only one"
+    )
+
+    parser.add_argument(
+        "--pretrained_model_name",
+        required=False,
+        help="The name of the pretrained model to use as starting point in training"
+    )
+
+    args = parser.parse_args()
+
+    dataset_config = yaml.safe_load(open(args.dataset_path))
+    pretrained_model_name = args.pretrained_model_name if args.pretrained_model_name is not None else config['run']['pretrained_model_name']
 
     current_timestamp = str(datetime.datetime.now()).split('.')[0]
 
@@ -44,7 +71,7 @@ if __name__ == '__main__':
     if config['model']['use_gpu']:
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-    weights_and_biases_run_name = f'''{current_timestamp}_run_{config['run']['finetuned_model_type']}_{device}'''
+    weights_and_biases_run_name = f'''{current_timestamp}_run_{config['run']['finetuned_model_type']}_{pretrained_model_name}_{device}_{args.run_name_suffix}'''
     if config['app']['debug_mode']:
         weights_and_biases_run_name = 'DEBUG_' + weights_and_biases_run_name
 
@@ -52,7 +79,7 @@ if __name__ == '__main__':
 
     ### Preparing data
     tokenizer = AutoTokenizer.from_pretrained(
-        config['run']['pretrained_model_name']
+        pretrained_model_name
     )
 
     dataset_obj = None
@@ -114,7 +141,7 @@ if __name__ == '__main__':
     num_labels = dataset_obj.get_num_categories()
 
     model = Model(
-        config['run']['pretrained_model_name'],
+        pretrained_model_name,
         model_type=config['run']['finetuned_model_type'],
         num_labels=num_labels
     )
@@ -219,6 +246,9 @@ if __name__ == '__main__':
             visualisation.add_full_training_metrics(full_training_metrics)
 
     strategies = config['run']['strategies']
+    if args.al_strategy is not None:
+        strategies = [args.al_strategy]
+
     implemented_strategies_list = list(config['app']['strategies'].keys())
     for strategy in strategies:
         if strategy not in implemented_strategies_list:
