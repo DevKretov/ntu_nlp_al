@@ -36,11 +36,10 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description=__doc__)
 
-    dataset_path = str(CONFIGS_FOLDER_PATH / (config['run']['selected_dataset'] + '.yaml'))
     parser.add_argument(
         "--dataset_path",
         required=False,
-        default=dataset_path,
+        default=config['run']['selected_dataset'],
         help = "Location of dataset config file "
     )
     parser.add_argument(
@@ -62,7 +61,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    dataset_config = yaml.safe_load(open(args.dataset_path))
+    dataset_path = str(CONFIGS_FOLDER_PATH / (args.dataset_path + '.yaml'))
+    dataset_config = yaml.safe_load(open(dataset_path))
     pretrained_model_name = args.pretrained_model_name if args.pretrained_model_name is not None else config['run']['pretrained_model_name']
 
     current_timestamp = str(datetime.datetime.now()).split('.')[0]
