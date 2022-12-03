@@ -13,7 +13,7 @@ run:
   # The name of the model you want transformers to load.
   # Can be from the local repository (file system) or from
   # HuggingFace's model hub: https://huggingface.co/models
-  pretrained_model_name: 'bert-base-uncased' #'prajjwal1/bert-tiny'
+  pretrained_model_name: 'bert-base-multilingual-uncased' #'prajjwal1/bert-tiny'
   # Select the model type you want to fine-tune. Now only 'classification' and 'tagging' available
   finetuned_model_type: 'classification'
   # If you train with imbalanced classes, this option can be helpful
@@ -27,7 +27,7 @@ run:
   full_train: False
   # Please write the config name of the dataset config .YAML file
   # in order to read data from it
-  selected_dataset: 'news_classification'
+  selected_dataset: 'ctu_dataset_fact_checking'
  # selected_dataset: 'conll2003_tagging'
 
   visualise_locally: False
@@ -36,7 +36,7 @@ run:
   weights_and_biases_on: True
 
 app:
-  debug_mode: False
+  debug_mode: True
 
   model_classification_name: 'classification'
   model_tagging_name: 'tagging'

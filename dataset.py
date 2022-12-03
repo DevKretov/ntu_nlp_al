@@ -33,13 +33,19 @@ class Dataset:
         self.tokenizer = tokenizer
 
     def load_hosted_dataset(self, dataset_name, revision=None):
-        if revision is None:
-            revision = config['dataset']['hosted_dataset_default_revision_name']
+       # TODO: maybe we do not need to put default revision name if it does not exist
+       # if revision is None:
+       #     revision = config['dataset']['hosted_dataset_default_revision_name']
 
         self.dataset = load_dataset(
             dataset_name,
             revision=revision,
         )
+
+    def set_splits_names(self, train_split_name, val_split_name, test_split_name):
+        self.train_split_name = train_split_name
+        self.val_split_name = val_split_name
+        self.test_split_name = test_split_name
 
     def load_csv_dataset(self, data_files_dict, delimiter = '|'):
         self.dataset = load_dataset(
@@ -77,18 +83,22 @@ class ClassificationDataset(Dataset):
 
     def prepare_dataset(self, labels_column_name, input_text_column_name, max_length=256, truncation=True):
         self.prepare_labels(labels_column_name)
-        self.encode_dataset(input_text_column_name, max_length, truncation)
+        input_text_column_name_new = self.encode_dataset(input_text_column_name, max_length, truncation)
 
         self.labels_column_name = labels_column_name
-        self.input_text_column_name = input_text_column_name
+        self.input_text_column_name = input_text_column_name_new
 
     def prepare_labels(self, labels_column_name):
+
 
         self.dataset = self.dataset.rename_column(
             labels_column_name,
             self.UNIFIED_LABELS_COLUMN_NAME
         )
 
+        # the next line plays a huge role when the label is already an integer: it casts it back to str so that the whole routine works fine
+        # TODO: do nothing if it's already an integer
+        self.dataset = self.dataset.map(lambda _entry: {self.UNIFIED_LABELS_COLUMN_NAME: str(_entry[self.UNIFIED_LABELS_COLUMN_NAME])})
         self.dataset = self.dataset.class_encode_column(self.UNIFIED_LABELS_COLUMN_NAME)
         self.int_2_labels = self.dataset['train'].features[self.UNIFIED_LABELS_COLUMN_NAME].__dict__['_int2str']
 
@@ -97,6 +107,18 @@ class ClassificationDataset(Dataset):
         )
 
     def encode_dataset(self, input_text_column_name, max_length=256, truncation=True):
+
+        if isinstance(input_text_column_name, list):
+            columns_to_analyse = input_text_column_name.copy()
+            input_text_column_name = 'input_text_prepared'
+            #input_text_column_name = input_text_column_name
+            # the dataset is a list of columns. merge them
+           # splits = self.dataset.keys()#['train', 'val', 'test']
+            #for split in splits:
+             #   self.dataset[split][input_text_column_name] = [' '.join(_one_tuple) for _one_tuple in zip(*[self.dataset[split][_label_col] for _label_col in columns_to_analyse])]
+            self.dataset = self.dataset.map(lambda _entry: {input_text_column_name: ' [SEP] '.join([_entry[_label_col] for _label_col in columns_to_analyse]).strip()})
+
+
 
         self.dataset = self.dataset.map(
             lambda examples: self.tokenizer(
@@ -113,6 +135,8 @@ class ClassificationDataset(Dataset):
             columns=config['model']['training_dict_keys'],
             output_all_columns=True
         )
+
+        return input_text_column_name
 
     def get_all_categories(self):
         return self.dataset['train'].features[self.UNIFIED_LABELS_COLUMN_NAME].__dict__['_str2int']
@@ -233,7 +257,7 @@ class ClassificationDataset(Dataset):
             )
 
         self.val_dataloader = DataLoader(
-            self.dataset['val'],
+            self.dataset[self.val_split_name],
             batch_size=val_batch_size
         )
 
@@ -367,7 +391,7 @@ class TokenClassificationDataset(Dataset):
             )
 
         self.val_dataloader = DataLoader(
-            self.dataset['val'],
+            self.dataset[self.val_split_name],
             batch_size=val_batch_size,
             collate_fn=self.processing_function
         )

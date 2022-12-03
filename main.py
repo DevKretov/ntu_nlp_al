@@ -59,7 +59,19 @@ if __name__ == '__main__':
         help="The name of the pretrained model to use as starting point in training"
     )
 
+    parser.add_argument(
+        "--add_dataset_size",
+        required=False,
+        default=32,
+        type=int,
+        help="The name of the pretrained model to use as starting point in training"
+    )
+
     args = parser.parse_args()
+
+    # add_dataset_size
+    add_dataset_size = args.add_dataset_size if args.add_dataset_size is not None else config['al']['add_dataset_size']
+    logging.info(f'Add dataset size: {add_dataset_size}')
 
     dataset_path = str(CONFIGS_FOLDER_PATH / (args.dataset_path + '.yaml'))
     dataset_config = yaml.safe_load(open(dataset_path))
@@ -90,15 +102,21 @@ if __name__ == '__main__':
     else:
         raise NotImplementedError(f'''Type {config['run']['finetuned_model_type']} not supported yet!''')
 
+    dataset_train_split_key = config['app']['dataset_train_key'] if dataset_config.get('dataset_train_key', None) is None else dataset_config.get('dataset_train_key')
+    dataset_val_split_key = config['app']['dataset_val_key'] if dataset_config.get('dataset_val_key', None) is None else dataset_config.get('dataset_val_key')
+    dataset_test_split_key = config['app']['dataset_test_key'] if dataset_config.get('dataset_test_key', None) is None else dataset_config.get('dataset_test_key')
+
+    dataset_obj.set_splits_names(dataset_train_split_key, dataset_val_split_key, dataset_test_split_key)
+
     if dataset_config['load_from_hub']:
         dataset_name = dataset_config['hub_dataset_name']
         #dataset_name = parameters['dataset_from_datasets_hub_name']
         dataset_obj.load_hosted_dataset(dataset_name, revision=dataset_config['revision'])
     else:
         data_files = {
-            config['app']['dataset_train_key']: [dataset_config['train_file_path']],
-            config['app']['dataset_val_key']: [dataset_config['val_file_path']],
-            config['app']['dataset_test_key']: [dataset_config['test_file_path']]
+            dataset_train_split_key: [dataset_config['train_file_path']],
+            dataset_val_split_key: [dataset_config['val_file_path']],
+            dataset_test_split_key: [dataset_config['test_file_path']]
         }
 
         dataset_obj.load_csv_dataset(
@@ -107,17 +125,17 @@ if __name__ == '__main__':
         )
 
     dataset_obj.truncate_dataset(
-        config['app']['dataset_train_key'],
+        dataset_train_split_key,
         config['dataset']['train_dataset_size'],
         shuffle=config['dataset']['shuffle_datasets']
     )
     dataset_obj.truncate_dataset(
-        config['app']['dataset_val_key'],
+        dataset_val_split_key,
         config['dataset']['val_dataset_size'],
         shuffle=config['dataset']['shuffle_datasets']
     )
     dataset_obj.truncate_dataset(
-        config['app']['dataset_test_key'],
+        dataset_test_split_key,
         config['dataset']['val_dataset_size'],
         shuffle=config['dataset']['shuffle_datasets']
     )
@@ -126,6 +144,9 @@ if __name__ == '__main__':
         dataset_config['label_column_name'],
         dataset_config['text_column_name'],
     )
+
+
+
 
     ### Prepare W&B structure for saving predictions
     wandb_table = None
@@ -258,7 +279,7 @@ if __name__ == '__main__':
         trainer.al_train(
             al_iterations=config['al']['num_iterations'],
             init_dataset_size=config['al']['init_dataset_size'],
-            add_dataset_size=config['al']['add_dataset_size'],
+            add_dataset_size=add_dataset_size,#config['al']['add_dataset_size'],
             train_epochs=config['model']['train_epochs'],
             strategy=strategy,
             train_batch_size=config['model']['train_batch_size'],
