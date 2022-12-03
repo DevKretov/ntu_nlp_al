@@ -36,7 +36,7 @@ run:
   weights_and_biases_on: True
 
 app:
-  debug_mode: True
+  debug_mode: False
 
   model_classification_name: 'classification'
   model_tagging_name: 'tagging'
