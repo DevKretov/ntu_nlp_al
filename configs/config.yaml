@@ -4,16 +4,16 @@ run:
   # List all strategies you want to try out for your experiment
   # All names have to correspond to those in app.strategies dictionary in config
   strategies:
-    - random
-    - least_confidence
-    - badge
-    - entropy
-    - kmeans
+    - kmeans_first_embedding_layer
+#    - least_confidence
+#    - badge
+#    - entropy
+#    - kmeans
 
   # The name of the model you want transformers to load.
   # Can be from the local repository (file system) or from
   # HuggingFace's model hub: https://huggingface.co/models
-  pretrained_model_name: 'bert-base-multilingual-uncased' #'prajjwal1/bert-tiny'
+  pretrained_model_name: 'prajjwal1/bert-tiny' #'prajjwal1/bert-tiny'
   # Select the model type you want to fine-tune. Now only 'classification' and 'tagging' available
   finetuned_model_type: 'classification'
   # If you train with imbalanced classes, this option can be helpful
@@ -33,10 +33,10 @@ run:
   visualise_locally: False
   visualisation_save_path: 'visualisations/al_strategies_performance.png'
 
-  weights_and_biases_on: True
+  weights_and_biases_on: False
 
 app:
-  debug_mode: False
+  debug_mode: True
 
   model_classification_name: 'classification'
   model_tagging_name: 'tagging'
@@ -48,6 +48,7 @@ app:
     badge: 'badge'
     entropy: 'entropy'
     kmeans: 'kmeans'
+    kmeans_first_embedding_layer: 'kmeans_first_embedding_layer'
 
   eval_mode: 'Eval'
   test_mode: 'Test'

@@ -17,6 +17,7 @@ from dataset import Dataset
 from strategies.entropy_strategy import EntropySampling
 from strategies.badge_strategy import BadgeSampling
 from strategies.kmeans_strategy import KMeansSampling
+from strategies.kmeans_first_embedding_layer_strategy import KMeansFirstLayerSampling
 from strategies.least_confidence_strategy import LeastConfidence
 from strategies.random_strategy import RandomStrategy
 from strategies.tagging_least_confidence_strategy import TaggingLeastConfidence
@@ -208,6 +209,17 @@ class ALTrainer:
             )
         elif strategy.lower().strip() == 'kmeans':
             strategy = KMeansSampling(
+                self.model,
+                self.dataset.unlabelled_dataloader,
+                len(self.dataset.al_train_dataset['unlabelled']),
+                self.device,
+                num_labels=self.model.num_labels,
+                model_type=self.model_type,
+                embedding_dim=self.model.model.config.hidden_size,
+                batch_size=self.val_batch_size
+            )
+        elif strategy.lower().strip() == 'kmeans_first_embedding_layer':
+            strategy = KMeansFirstLayerSampling(
                 self.model,
                 self.dataset.unlabelled_dataloader,
                 len(self.dataset.al_train_dataset['unlabelled']),
