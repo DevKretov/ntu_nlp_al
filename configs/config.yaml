@@ -33,7 +33,7 @@ run:
   visualise_locally: False
   visualisation_save_path: 'visualisations/al_strategies_performance.png'
 
-  weights_and_biases_on: False
+  weights_and_biases_on: True
 
 app:
   debug_mode: True
