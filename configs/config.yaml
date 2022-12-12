@@ -20,7 +20,7 @@ run:
   # If you train with imbalanced classes, this option can be helpful
   # It makes training more balanced by weighted sampling basing on
   # classes' inverse proportion
-  class_imbalance_reweight: False
+  class_imbalance_reweight: True
 
   # If you experiment in order to find the best strategy,
   # you might have some large labelled dataset. You can train a full
