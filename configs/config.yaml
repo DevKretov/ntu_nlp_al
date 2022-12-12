@@ -4,7 +4,8 @@ run:
   # List all strategies you want to try out for your experiment
   # All names have to correspond to those in app.strategies dictionary in config
   strategies:
-    - kmeans_first_embedding_layer
+    - random
+#    - kmeans_first_embedding_layer
 #    - least_confidence
 #    - badge
 #    - entropy
@@ -13,7 +14,7 @@ run:
   # The name of the model you want transformers to load.
   # Can be from the local repository (file system) or from
   # HuggingFace's model hub: https://huggingface.co/models
-  pretrained_model_name: 'prajjwal1/bert-tiny' #'prajjwal1/bert-tiny'
+  pretrained_model_name: 'ufal/robeczech-base' #'prajjwal1/bert-tiny'
   # Select the model type you want to fine-tune. Now only 'classification' and 'tagging' available
   finetuned_model_type: 'classification'
   # If you train with imbalanced classes, this option can be helpful

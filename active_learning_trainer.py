@@ -702,7 +702,7 @@ class ALTrainer:
                    # logging.warning(f'There is label not found in predictions: {set(labels_all_lst) - set(predictions_all_lst)}')
                    # logging.warning(f'Printing metric without this label')
 
-                    result = metric.compute(average=self.DEFAULT_AVERAGE_MODE, labels=np.unique(predictions_all))
+                    result = metric.compute(average=self.DEFAULT_AVERAGE_MODE, labels=np.unique(labels_all))
                 else:
                     result = metric.compute(average=self.DEFAULT_AVERAGE_MODE)
             else:
