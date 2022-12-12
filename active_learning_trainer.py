@@ -774,7 +774,7 @@ class ALTrainer:
             metric_name = config['model']['save_dev_model_metric']
             metric_value = eval_result[metric_name]
 
-            if self.best_metric_score > metric_value:
+            if self.best_metric_score < metric_value:
                 if al_iteration == -1:
                     self.model.save_model(save_model_path + '_full_train')
                 else:
@@ -782,5 +782,8 @@ class ALTrainer:
 
                 logging.info(f'Previous best {metric_name} score = {self.best_metric_score}, now = {metric_value}. Best model saved!')
                 self.best_metric_score = metric_value
+            else:
+                logging.info(
+                    f'Previous best {metric_name} score = {self.best_metric_score}, now = {metric_value}. Best model NOT saved!')
 
         print()
