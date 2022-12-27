@@ -76,6 +76,13 @@ if __name__ == '__main__':
         help="Initial size of the training dataset"
     )
 
+    #finetuned_model_type
+    parser.add_argument(
+        "--finetuned_model_type",
+        required=False,
+        help="The type of the model to tune: either classification or tagging"
+    )
+
     args = parser.parse_args()
 
     # add_dataset_size
@@ -107,12 +114,15 @@ if __name__ == '__main__':
     )
 
     dataset_obj = None
-    if config['run']['finetuned_model_type'] == config['app']['model_classification_name']:
+
+    finetuned_model_type = args.finetuned_model_type if args.finetuned_model_type is not None else config['run']['finetuned_model_type']
+
+    if finetuned_model_type == config['app']['model_classification_name']:
         dataset_obj = ClassificationDataset(tokenizer)
-    elif config['run']['finetuned_model_type'] == config['app']['model_tagging_name']:
+    elif finetuned_model_type == config['app']['model_tagging_name']:
         dataset_obj = TokenClassificationDataset(tokenizer)
     else:
-        raise NotImplementedError(f'''Type {config['run']['finetuned_model_type']} not supported yet!''')
+        raise NotImplementedError(f'''Type {finetuned_model_type} not supported yet!''')
 
     dataset_train_split_key = config['app']['dataset_train_key'] if dataset_config.get('dataset_train_key', None) is None else dataset_config.get('dataset_train_key')
     dataset_val_split_key = config['app']['dataset_val_key'] if dataset_config.get('dataset_val_key', None) is None else dataset_config.get('dataset_val_key')
@@ -175,7 +185,7 @@ if __name__ == '__main__':
 
     model = Model(
         pretrained_model_name,
-        model_type=config['run']['finetuned_model_type'],
+        model_type=finetuned_model_type,
         num_labels=num_labels
     )
 
@@ -214,7 +224,7 @@ if __name__ == '__main__':
     trainer = ALTrainer(
         wandb_on=config['run']['weights_and_biases_on'],
         imbalanced_training=config['run']['class_imbalance_reweight'],
-        model_type=config['run']['finetuned_model_type'],
+        model_type=finetuned_model_type,
         wandb_run=run,
         wandb_table=wandb_table,
         wandb_save_datasets_artifacts=config['reporting']['weights_and_biases_save_dataset_artifacts']
@@ -251,12 +261,12 @@ if __name__ == '__main__':
     trainer.add_evaluation_metric(load_metric('accuracy'))
 
     metrics_list = []
-    if config['run']['finetuned_model_type'] == config['app']['model_tagging_name']:
+    if finetuned_model_type == config['app']['model_tagging_name']:
         metrics_list = config['model']['metrics']['tagging']
-    elif config['run']['finetuned_model_type'] == config['app']['model_classification_name']:
+    elif finetuned_model_type == config['app']['model_classification_name']:
         metrics_list = config['model']['metrics']['classification']
     else:
-        raise NotImplementedError(f'''There is no such model type implemented like {config['run']['finetuned_model_type']}''')
+        raise NotImplementedError(f'''There is no such model type implemented like {finetuned_model_type}''')
 
     for metric in metrics_list:
         trainer.add_evaluation_metric(load_metric(metric))
@@ -302,6 +312,7 @@ if __name__ == '__main__':
         )
 
         al_strategy_metrics = trainer.al_strategy_metrics
+        # Letadlo2022+2022
 
         if config['run']['visualise_locally']:
             visualisation.add_al_strategy_metrics(al_strategy_metrics, strategy)
