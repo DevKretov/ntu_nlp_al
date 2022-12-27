@@ -33,14 +33,17 @@ class Dataset:
         self.tokenizer = tokenizer
 
     def load_hosted_dataset(self, dataset_name, revision=None):
-       # TODO: maybe we do not need to put default revision name if it does not exist
-       # if revision is None:
-       #     revision = config['dataset']['hosted_dataset_default_revision_name']
+        # TODO: maybe we do not need to put default revision name if it does not exist
+        if revision is None:
+            self.dataset = load_dataset(dataset_name)
+        else:
+            self.dataset = load_dataset(
+                dataset_name,
+                revision=revision,
+            )
 
-        self.dataset = load_dataset(
-            dataset_name,
-            revision=revision,
-        )
+
+
 
     def set_splits_names(self, train_split_name, val_split_name, test_split_name):
         self.train_split_name = train_split_name
