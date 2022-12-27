@@ -781,6 +781,7 @@ class ALTrainer:
                     self.model.save_model(save_model_path)
 
                 logging.info(f'Previous best {metric_name} score = {self.best_metric_score}, now = {metric_value}. Best model saved!')
+
                 self.best_metric_score = metric_value
             else:
                 logging.info(

@@ -67,10 +67,21 @@ if __name__ == '__main__':
         help="The name of the pretrained model to use as starting point in training"
     )
 
+    # init_dataset_size
+    parser.add_argument(
+        "--init_dataset_size",
+        required=False,
+        default=32,
+        type=int,
+        help="Initial size of the training dataset"
+    )
+
     args = parser.parse_args()
 
     # add_dataset_size
     add_dataset_size = args.add_dataset_size if args.add_dataset_size is not None else config['al']['add_dataset_size']
+    init_dataset_size = args.init_dataset_size if args.init_dataset_size is not None else config['al']['init_dataset_size']
+    logging.info(f'Init dataset size: {init_dataset_size}')
     logging.info(f'Add dataset size: {add_dataset_size}')
 
     dataset_path = str(CONFIGS_FOLDER_PATH / (args.dataset_path + '.yaml'))
@@ -91,7 +102,8 @@ if __name__ == '__main__':
 
     ### Preparing data
     tokenizer = AutoTokenizer.from_pretrained(
-        pretrained_model_name
+        pretrained_model_name,
+       # strip_accents=False
     )
 
     dataset_obj = None
@@ -278,7 +290,7 @@ if __name__ == '__main__':
 
         trainer.al_train(
             al_iterations=config['al']['num_iterations'],
-            init_dataset_size=config['al']['init_dataset_size'],
+            init_dataset_size=init_dataset_size,
             add_dataset_size=add_dataset_size,#config['al']['add_dataset_size'],
             train_epochs=config['model']['train_epochs'],
             strategy=strategy,
