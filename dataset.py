@@ -94,14 +94,15 @@ class ClassificationDataset(Dataset):
     def prepare_labels(self, labels_column_name):
 
 
-        self.dataset = self.dataset.rename_column(
-            labels_column_name,
-            self.UNIFIED_LABELS_COLUMN_NAME
-        )
+        # self.dataset = self.dataset.rename_column(
+        #     labels_column_name,
+        #     self.UNIFIED_LABELS_COLUMN_NAME
+        # )
 
         # the next line plays a huge role when the label is already an integer: it casts it back to str so that the whole routine works fine
         # TODO: do nothing if it's already an integer
-        self.dataset = self.dataset.map(lambda _entry: {self.UNIFIED_LABELS_COLUMN_NAME: str(_entry[self.UNIFIED_LABELS_COLUMN_NAME])})
+      #  self.dataset = self.dataset.map(lambda _entry: {self.UNIFIED_LABELS_COLUMN_NAME: str(_entry[self.UNIFIED_LABELS_COLUMN_NAME]) if not isinstance(_entry[self.UNIFIED_LABELS_COLUMN_NAME], list) else _entry[self.UNIFIED_LABELS_COLUMN_NAME]})
+        self.dataset = self.dataset.map(lambda _entry: {self.UNIFIED_LABELS_COLUMN_NAME: str(_entry[labels_column_name])}, remove_columns=[labels_column_name])
         self.dataset = self.dataset.class_encode_column(self.UNIFIED_LABELS_COLUMN_NAME)
         self.int_2_labels = self.dataset['train'].features[self.UNIFIED_LABELS_COLUMN_NAME].__dict__['_int2str']
 
