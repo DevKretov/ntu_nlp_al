@@ -772,6 +772,9 @@ class ALTrainer:
                     self.wandb_table = wandb.Table(columns=self.wandb_table.columns)
         else:
             metric_name = config['model']['save_dev_model_metric']
+            if metric_name not in eval_result.keys():
+                # TODO: instead of this make better parametrization of tagging/classification
+                metric_name = 'seqeval_overall_f1'
             metric_value = eval_result[metric_name]
 
             if self.best_metric_score < metric_value:
