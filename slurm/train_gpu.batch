@@ -16,7 +16,7 @@ do
         s) add_dataset_size=${OPTARG};;
         i) init_dataset_size=${OPTARG};;
         f) finetuned_model_type=${OPTARG};;
-        i) learning_rate=${OPTARG};;
+        l) learning_rate=${OPTARG};;
         e) train_epochs=${OPTARG};;
     esac
 done
