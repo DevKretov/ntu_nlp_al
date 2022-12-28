@@ -83,7 +83,30 @@ if __name__ == '__main__':
         help="The type of the model to tune: either classification or tagging"
     )
 
+    # learning_rate
+    parser.add_argument(
+        "--learning_rate",
+        required=False,
+        type=float,
+        default=5e-5,
+        help="Learning rate of the model"
+    )
+
+    # train_epochs
+    parser.add_argument(
+        "--train_epochs",
+        required=False,
+        type=int,
+        default=5,
+        help="Number of training epochs for each al step"
+    )
+
     args = parser.parse_args()
+
+    learning_rate = args.learning_rate if args.learning_rate is not None else config['model']['learning_rate']
+    print(f'LR = {learning_rate}')
+
+    train_epochs = args.train_epochs if args.train_epochs is not None else config['model']['train_epochs']
 
     # add_dataset_size
     add_dataset_size = args.add_dataset_size if args.add_dataset_size is not None else config['al']['add_dataset_size']
@@ -133,6 +156,7 @@ if __name__ == '__main__':
     if dataset_config['load_from_hub']:
         dataset_name = dataset_config['hub_dataset_name']
         #dataset_name = parameters['dataset_from_datasets_hub_name']
+
         dataset_obj.load_hosted_dataset(dataset_name, revision=dataset_config['revision'])
     else:
         data_files = {
@@ -242,11 +266,11 @@ if __name__ == '__main__':
 
     optimizer = torch.optim.AdamW(
         model.model.parameters(),
-        lr=config['model']['learning_rate']
+        lr=learning_rate
     )
-    trainer.set_optimizer(optimizer, init_lr = config['model']['learning_rate'])
+    trainer.set_optimizer(optimizer, init_lr = learning_rate)
 
-    num_training_steps = config['model']['train_epochs'] * trainer.get_training_steps_num()
+    num_training_steps = train_epochs * trainer.get_training_steps_num()
 
     # TODO: Implement LR scheduler or decide if it is needed or not (basing on the way how BERT models are fine-tuned (max 5 epochs)
     # lr_scheduler = get_scheduler(
@@ -276,7 +300,7 @@ if __name__ == '__main__':
 
     if config['run']['full_train']:
         trainer.full_train(
-            train_epochs=config['model']['train_epochs'],
+            train_epochs=train_epochs,
             train_batch_size=config['model']['train_batch_size'],
             val_batch_size=config['model']['val_batch_size'],
             test_batch_size=config['model']['test_batch_size'],
@@ -302,7 +326,7 @@ if __name__ == '__main__':
             al_iterations=config['al']['num_iterations'],
             init_dataset_size=init_dataset_size,
             add_dataset_size=add_dataset_size,#config['al']['add_dataset_size'],
-            train_epochs=config['model']['train_epochs'],
+            train_epochs=train_epochs,
             strategy=strategy,
             train_batch_size=config['model']['train_batch_size'],
             val_batch_size=config['model']['val_batch_size'],
