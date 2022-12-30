@@ -25,7 +25,7 @@ run:
   # If you experiment in order to find the best strategy,
   # you might have some large labelled dataset. You can train a full
   # model on all data in order to see "maximum" capabilities of the model
-  full_train: False
+  full_train: True
   # Please write the config name of the dataset config .YAML file
   # in order to read data from it
   selected_dataset: 'ctu_dataset_fact_checking'
@@ -92,7 +92,7 @@ model:
 al:
   # Whether to run full model training on full dataset before simulating AL
   full_train: False
-  num_iterations: 100
+  num_iterations: 1
 
   init_dataset_size: 32
   add_dataset_size: 32
