@@ -1,0 +1,19 @@
+
+load_from_hub: True
+hub_dataset_name: "ctu-aic/ctkfacts_nli"
+revision: null
+
+
+dataset_train_key: 'train'
+dataset_val_key: 'validation'
+dataset_test_key: 'test'
+
+train_file_path: 'data/news/train.csv'
+val_file_path: 'data/news/val.csv'
+test_file_path: 'data/news/test.csv'
+delimiter: ','
+
+label_column_name: 'label'
+text_column_name:
+  - evidence
+  - claim

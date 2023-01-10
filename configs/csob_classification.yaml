@@ -1,0 +1,15 @@
+
+# Is the file local or hosted somewhere?
+load_from_hub: False
+# If hosted, what's its name
+hub_dataset_name: 'name'
+
+# if local, provide paths to each set
+train_file_path: 'data/csob/train.csv'
+val_file_path: 'data/csob/val.csv' # non-mandatory file
+test_file_path: 'data/csob/test.csv'
+# CSV-specific
+delimiter: ','
+
+text_column_name: 'text'
+label_column_name: 'category'

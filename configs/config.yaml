@@ -1,0 +1,175 @@
+run:
+  # Here are the main parameters that you will definitely adjust to your needs
+
+  # List all strategies you want to try out for your experiment
+  # All names have to correspond to those in app.strategies dictionary in config
+  strategies:
+    - random
+#    - kmeans_first_embedding_layer
+#    - least_confidence
+#    - badge
+#    - entropy
+#    - kmeans
+
+  # The name of the model you want transformers to load.
+  # Can be from the local repository (file system) or from
+  # HuggingFace's model hub: https://huggingface.co/models
+  pretrained_model_name: 'UWB-AIR/Czert-A-base-uncased' #'distilbert-base-multilingual-cased' #'prajjwal1/bert-tiny'
+  # Select the model type you want to fine-tune. Now only 'classification' and 'tagging' available
+  finetuned_model_type: 'classification'
+  # If you train with imbalanced classes, this option can be helpful
+  # It makes training more balanced by weighted sampling basing on
+  # classes' inverse proportion
+  class_imbalance_reweight: True
+
+  # If you experiment in order to find the best strategy,
+  # you might have some large labelled dataset. You can train a full
+  # model on all data in order to see "maximum" capabilities of the model
+  full_train: True
+  # Please write the config name of the dataset config .YAML file
+  # in order to read data from it
+  selected_dataset: 'ctu_dataset_fact_checking'
+ # selected_dataset: 'conll2003_tagging'
+
+  visualise_locally: False
+  visualisation_save_path: 'visualisations/al_strategies_performance.png'
+
+  weights_and_biases_on: True
+
+app:
+  debug_mode: False
+
+  model_classification_name: 'classification'
+  model_tagging_name: 'tagging'
+
+  strategies:
+    random: 'random'
+    least_confidence: 'least_confidence'
+    least_confidence_thresh: 'least_confidence_thresh'
+    badge: 'badge'
+    entropy: 'entropy'
+    kmeans: 'kmeans'
+    kmeans_first_embedding_layer: 'kmeans_first_embedding_layer'
+
+  eval_mode: 'Eval'
+  test_mode: 'Test'
+
+  dataset_train_key: 'train'
+  dataset_val_key: 'val'
+  dataset_test_key: 'test'
+
+model:
+  use_gpu: True
+
+  train_epochs: 5
+  save_dev_model_metric: 'f1'
+  # If do resampling during data loading or not (could work better for imbalanced datasets)
+  class_imbalance_reweight: True
+  learning_rate: 5.0e-5
+
+  train_batch_size: 32
+  # Val batch size is also used as AL dataloader batch size
+  val_batch_size: 64
+  test_batch_size: 64
+
+  metrics:
+    classification:
+      - 'f1'
+      - 'precision'
+      - 'recall'
+      - 'accuracy'
+    tagging:
+      - 'accuracy'
+      - 'seqeval'
+
+  training_dict_keys:
+    - 'attention_mask'
+    - 'input_ids'
+    - 'labels'
+
+  encoded_input_ids_column_name: 'input_ids'
+
+al:
+  # Whether to run full model training on full dataset before simulating AL
+  full_train: False
+  num_iterations: 1
+
+  init_dataset_size: 32
+  add_dataset_size: 32
+
+  metrics_to_use_average_in:
+    - 'f1'
+    - 'precision'
+    - 'recall'
+
+  seqeval_name: 'seqeval'
+  default_average_mode: 'weighted'
+
+dataset:
+  train_dataset_size: 10000
+  val_dataset_size: 1000
+  test_dataset_size: 1000
+  shuffle_datasets: True
+
+  encoded_labels_column_name: 'labels'
+  # Labels can be a list of tags, that's why it is needed to add this config
+  txt_labels_column_name: 'labels_txt'
+  str_labels_column_name: 'labels_str'
+
+  index_column_name: 'index'
+
+reporting:
+
+  weights_and_biases_key: '6dcdbcb537587c3adf5e7d6f8ece3d9d5223f3ad'
+  weights_and_biases_save_predictions: True
+  weights_and_biases_save_dataset_artifacts: True
+
+  project_name: 'ntu_al'
+
+  full_training_artifacts_name_prefix: 'full_train_'
+
+  init_dataset_artifact_name: 'init_dataset'
+  al_dataset_artifact_name: 'al_dataset'
+  train_dataset_artifact_name: 'train_dataset'
+  eval_table_artifact_name: 'eval_table'
+
+  weights_and_biases_eval_table_columns:
+    - 'seq_i'
+    - 'text'
+    - 'true_label'
+    - 'prediction'
+
+  weights_and_biases_full_train_mean_loss_log_name: 'full_train_mean_loss'
+  weights_and_biases_train_mean_loss_log_name: 'train_mean_loss'
+  weights_and_biases_confusion_matrix_log_name: 'conf_mat'
+  weights_and_biases_test_loss_log_name: 'test_loss'
+  weights_and_biases_test_predictions_table_log_name: 'test_predictions_table'
+
+visualisation:
+  classification_metrics:
+    - accuracy
+    - precision
+    - recall
+    - f1
+
+  tagging_metrics:
+    - overall_accuracy
+    - overall_precision
+    - overall_recall
+    - overall_f1
+
+  metrics_names:
+    accuracy: 'Accuracy'
+    precision: 'Precision'
+    recall: 'Recall'
+    f1: 'F1'
+
+    overall_accuracy: 'Overall accuracy'
+    overall_precision: 'Overall precision'
+    overall_recall: 'Overall recall'
+    overall_f1: 'Overall F1'
+
+
+strategies:
+
+  log_output_folder: 'al_strategies_log'

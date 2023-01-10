@@ -11,7 +11,7 @@ from scipy.special import softmax
 # from seqeval.metrics import accuracy_score
 # from seqeval.metrics import classification_report
 # from seqeval.metrics import f1_score
-
+from pathlib import Path
 from sklearn.model_selection import train_test_split
 
 import json
@@ -45,6 +45,7 @@ class Model:
         self.model_name = model_name
         self.config = config
         self.model_type = model_type
+        self.num_labels = num_labels
 
         self.reinit_model(model_name, config, num_labels)
 
@@ -56,6 +57,9 @@ class Model:
             config = self.config
         elif not isinstance(config, PretrainedConfig):
             config = None
+
+        if num_labels is None:
+            num_labels = self.num_labels
 
         if self.model_type == self.CLASSIFICATION_MODEL_TYPE:
             self.model = AutoModelForSequenceClassification.from_pretrained(
@@ -70,6 +74,13 @@ class Model:
                 num_labels=num_labels
             )
 
+
+    def save_model(self, save_model_dir_path = ''):
+        save_path = Path(save_model_dir_path)
+        if not save_path.is_dir():
+            save_path.mkdir(parents=True, exist_ok=True)
+
+        self.model.save_pretrained(save_model_dir_path)
 
     def compile_model(self, optimizer = None, loss = None, metrics = None):
         # TODO assert their classes to corresponding packages
