@@ -14,7 +14,7 @@ run:
   # The name of the model you want transformers to load.
   # Can be from the local repository (file system) or from
   # HuggingFace's model hub: https://huggingface.co/models
-  pretrained_model_name: 'UWB-AIR/Czert-A-base-uncased' #'distilbert-base-multilingual-cased' #'prajjwal1/bert-tiny'
+  pretrained_model_name: 'prajjwal1/bert-tiny' #'distilbert-base-multilingual-cased' #'prajjwal1/bert-tiny'
   # Select the model type you want to fine-tune. Now only 'classification' and 'tagging' available
   finetuned_model_type: 'classification'
   # If you train with imbalanced classes, this option can be helpful
@@ -34,10 +34,10 @@ run:
   visualise_locally: False
   visualisation_save_path: 'visualisations/al_strategies_performance.png'
 
-  weights_and_biases_on: True
+  weights_and_biases_on: False
 
 app:
-  debug_mode: False
+  debug_mode: True
 
   model_classification_name: 'classification'
   model_tagging_name: 'tagging'
