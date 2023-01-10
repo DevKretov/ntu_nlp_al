@@ -481,6 +481,18 @@ class ALTrainer:
             if evaluation_steps_num == -1:
                 evaluation_steps_num = len(self.dataset.val_dataloader)
 
+
+            if al_iteration == -1:
+                self.evaluate(
+                    num_batches_to_eval=evaluation_steps_num,
+                    dataloader=self.dataset.val_dataloader,
+                    print_metrics=False,
+                    mode=config['app']['eval_mode'],
+                    al_iteration=al_iteration,
+                    epoch=epoch_i,
+                    save_model_path=save_model_path
+                )
+
         if self.wandb_on:
             if al_iteration == -1:
                 # if we are in the full train mode
@@ -496,15 +508,16 @@ class ALTrainer:
                     }
                 )
 
-        self.evaluate(
-            num_batches_to_eval=evaluation_steps_num,
-            dataloader=self.dataset.val_dataloader,
-            print_metrics=False,
-            mode=config['app']['eval_mode'],
-            al_iteration=al_iteration,
-            epoch=epoch_i,
-            save_model_path=save_model_path
-        )
+        if al_iteration != -1:
+            self.evaluate(
+                num_batches_to_eval=evaluation_steps_num,
+                dataloader=self.dataset.val_dataloader,
+                print_metrics=False,
+                mode=config['app']['eval_mode'],
+                al_iteration=al_iteration,
+                epoch=epoch_i,
+                save_model_path=save_model_path
+            )
 
         logging.info(f'Test set evaluation:')
         self.evaluate(
@@ -685,7 +698,9 @@ class ALTrainer:
 
             # Categories: {'alt': 0, 'comp': 1, 'misc': 2, 'rec': 3, 'sci': 4, 'soc': 5, 'talk': 6}
             if self.wandb_on:
-                eval_result[config['reporting']['weights_and_biases_confusion_matrix_log_name']] = wandb.plot.confusion_matrix(
+                eval_result[
+                    config['reporting']['weights_and_biases_confusion_matrix_log_name']
+                ] = wandb.plot.confusion_matrix(
                     probs=None,
                     y_true=labels_all,
                     preds=predictions_all,
@@ -783,7 +798,7 @@ class ALTrainer:
                 else:
                     self.model.save_model(save_model_path)
 
-                logging.info(f'Previous best {metric_name} score = {self.best_metric_score}, now = {metric_value}. Best model saved!')
+                logging.info(f'Training epoch {epoch}. Previous best {metric_name} score = {self.best_metric_score}, now = {metric_value}. Best model saved!')
 
                 self.best_metric_score = metric_value
             else:
